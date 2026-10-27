@@ -83,7 +83,7 @@
 ### From source / 从源码运行
 
 ```bash
-git clone https://github.com/yellowbook-desktop/lol-chat-translator.git
+git clone https://github.com/sixjjsns/lol-chat-translator.git
 cd lol-chat-translator
 python -m venv .venv
 .venv\Scripts\activate
