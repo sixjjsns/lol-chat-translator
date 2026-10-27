@@ -32,6 +32,9 @@ class TranslationPage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # 译文历史:按时间顺序累积,只保留最后 5 条(避免"看不过来")
+        self._history: list[str] = []
+        self._MAX_HISTORY = 5
         self._build_ui()
 
     def _build_ui(self):
@@ -211,9 +214,31 @@ class TranslationPage(QWidget):
 
     # --- 供外部调用 ---
     def set_result(self, text: str):
-        self.result_edit.setPlainText(text)
+        """追加一条译文到历史,只保留最近 5 条,展示在译文区。
+
+        每条之间用分隔线区分,新译文在底部(可滚到最下看最新的)。
+        这样玩家连续 F6 截图多次,能看到上下文脉络,又不会堆太多。
+        """
+        text = (text or "").strip()
+        if not text:
+            return
+        # 加入历史,超过上限丢弃最旧的
+        self._history.append(text)
+        if len(self._history) > self._MAX_HISTORY:
+            self._history = self._history[-self._MAX_HISTORY:]
+        # 用分隔线拼接展示,最新一条在底部
+        sep = "\n" + "─" * 30 + "\n"
+        rendered = sep.join(self._history)
+        self.result_edit.setPlainText(rendered)
+        # 自动滚到底部,让玩家看到最新译文
+        cursor = self.result_edit.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.result_edit.setTextCursor(cursor)
 
     def get_result(self) -> str:
+        """返回最新一条译文(不是整段历史),方便"复制译文"快捷键。"""
+        if self._history:
+            return self._history[-1]
         return self.result_edit.toPlainText().strip()
 
     def get_target_lang(self) -> str:
@@ -223,6 +248,7 @@ class TranslationPage(QWidget):
         return self.nat_slider.value()
 
     def clear_result(self):
+        self._history.clear()
         self.result_edit.clear()
 
     def set_reply_result(self, text: str):

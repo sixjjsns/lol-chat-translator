@@ -34,6 +34,7 @@ MESSAGES = {
         "settings.title": "设置",
         "settings.tab.provider": "翻译服务",
         "settings.tab.language": "语言",
+        "settings.tab.paste": "自动粘贴",
         "settings.tab.hotkey": "快捷键",
         "settings.provider": "翻译服务：",
         "settings.api_key": "API Key：",
@@ -52,6 +53,10 @@ MESSAGES = {
         "settings.ollama_hint": "本地模型：需先安装 Ollama 并运行（ollama pull qwen2.5vl:7b），无需 API Key，完全离线免费。",
         "settings.no_key_hint": "该服务无需 API Key。",
         "settings.need_key_hint": "该服务需要 API Key，请在对应平台获取后填入上方。",
+        # 自动粘贴
+        "settings.auto_paste": "自动粘贴译文到游戏聊天框（有封号风险，谨慎开启）",
+        "settings.auto_paste_warn": "警告：自动粘贴通过 SendInput 向游戏窗口注入按键，可能违反游戏服务条款并导致封号。请仅在了解风险后开启；该功能不会自动发送消息，仍需你手动按 Enter 发送。",
+        "settings.paste_delay": "注入延迟（每个字符）：",
         # 语言选项
         "lang.auto": "自动识别",
         "lang.zh": "中文",
@@ -100,6 +105,7 @@ MESSAGES = {
         "settings.title": "Settings",
         "settings.tab.provider": "Provider",
         "settings.tab.language": "Language",
+        "settings.tab.paste": "Auto Paste",
         "settings.tab.hotkey": "Hotkeys",
         "settings.provider": "Provider:",
         "settings.api_key": "API Key:",
@@ -118,6 +124,10 @@ MESSAGES = {
         "settings.ollama_hint": "Local model: install Ollama first (ollama pull qwen2.5vl:7b). No API key, fully offline & free.",
         "settings.no_key_hint": "This provider does not require an API key.",
         "settings.need_key_hint": "This provider requires an API key.",
+        # 自动粘贴
+        "settings.auto_paste": "Auto-paste translation into game chat (risk of ban, use with caution)",
+        "settings.auto_paste_warn": "Warning: auto-paste injects keystrokes into the game window via SendInput, which may violate the game's Terms of Service and lead to a ban. Enable only if you understand the risk. Messages are not sent automatically — you must still press Enter to send.",
+        "settings.paste_delay": "Injection delay (per char):",
         "lang.auto": "Auto Detect",
         "lang.zh": "Chinese",
         "lang.en": "English",

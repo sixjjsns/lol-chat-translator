@@ -5,9 +5,9 @@
     "model": "deepseek-flash",
     "timeout_connect": 10,
     "timeout_read": 30,
-    "max_tokens": 2048,
+    "max_tokens": 512,
     "temperature": 0.7,
-    "image_detail": "low"
+    "image_detail": "high"
   },
   "providers": {
     "deepseek": {
@@ -40,6 +40,12 @@
       "model": "moonshot-v1-8k-vision-preview",
       "needs_key": true
     },
+    "zhipu": {
+      "name": "智谱 GLM-4V",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "model": "glm-4v-plus",
+      "needs_key": true
+    },
     "ollama": {
       "name": "本地 Ollama",
       "base_url": "http://localhost:11434/v1",
@@ -53,12 +59,17 @@
     "jpeg_quality": 85,
     "monitor": null
   },
+  "paste": {
+    "auto_paste": false,
+    "delay_ms": 10
+  },
   "hotkeys": {
     "capture_translate": "f6",
     "retranslate": "f7",
     "copy_last": "f8",
-    "toggle_overlay": "home",
+    "toggle_window": "home",
     "select_region": "f9",
+    "reply_translate": "f10",
     "cancel": "esc"
   },
   "overlay": {

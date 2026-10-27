@@ -21,6 +21,7 @@ from ..services.screenshot_service import ScreenshotService
 from ..services.tray_service import TrayService
 from ..ui.main_window import MainWindow
 from ..ui.region_selector import RegionSelector
+from ..ui.reply_overlay import ReplyOverlayWindow
 from ..ui.result_overlay import ResultOverlayWindow
 from .task_manager import TaskManager
 
@@ -66,8 +67,11 @@ class Application(QObject):
         providers = self._load_providers_meta()
         self.window = MainWindow(providers, self.config, self.secret_store.get_key())
 
-        # 译文悬浮窗（F6 截图翻译结果弹到这里，避免遮挡游戏）
+        # 译文阅读悬浮窗（F6 截图翻译结果，只读，避免遮挡游戏）
         self.overlay = ResultOverlayWindow()
+
+        # 回复草稿悬浮窗（F10 反向翻译结果，可编辑 + 复制，用于发消息）
+        self.reply_overlay = ReplyOverlayWindow()
 
         # 连接信号
         self._connect_signals()
@@ -160,7 +164,7 @@ class Application(QObject):
 
     def _register_hotkeys(self):
         try:
-            mapping = self.config.get("hotkeys", DEFAULT_HOTKEYS)
+            mapping = self.config.get("hotkeys", DEFAULT_HOTKEYS) or DEFAULT_HOTKEYS
             handlers = {
                 "capture_translate": lambda: self._post_action("capture_translate"),
                 "retranslate": lambda: self._post_action("retranslate"),
@@ -170,6 +174,8 @@ class Application(QObject):
                 "reply_translate": lambda: self._post_action("reply_translate"),
                 "cancel": lambda: self._post_action("cancel"),
             }
+            # 只注册有 handler 的动作，自动清理历史残留（如已废弃的 toggle_overlay）
+            mapping = {action: key for action, key in mapping.items() if action in handlers}
             warnings = self.hotkeys.register_all(mapping, handlers)
             for warn in warnings:
                 logger.warning(warn)
@@ -214,7 +220,7 @@ class Application(QObject):
         req = TranslationRequest(
             kind=TaskKind.IMAGE,
             image_bytes=png,
-            target_lang=self.window.translation_page.get_target_lang(),
+            target_lang=self.config.get("language.target", "zh"),
             source_lang=self.config.get("language.source", "auto"),
             temperature=self._naturalness,
         )
@@ -230,7 +236,7 @@ class Application(QObject):
         req = TranslationRequest(
             kind=TaskKind.IMAGE,
             image_bytes=self._last_png,
-            target_lang=self.window.translation_page.get_target_lang(),
+            target_lang=self.config.get("language.target", "zh"),
             source_lang=self.config.get("language.source", "auto"),
             temperature=self._naturalness,
             force=True,
@@ -260,29 +266,64 @@ class Application(QObject):
     # ================= 结果回传 =================
     def _on_task_finished(self, result: TranslationResult):
         if result.kind == TaskKind.REPLY:
-            # 反向翻译：显示 + 自动复制到剪贴板
+            # 反向翻译：自动补全进游戏聊天框 + 悬浮窗兜底（可编辑 + 复制）
             self.window.set_reply_result(result.translated)
-            try:
-                import pyperclip
+            detail = f"{result.total_ms:.0f}ms" + (" (缓存)" if result.cached else "")
+            text = result.translated or ""
 
-                pyperclip.copy(result.translated)
-                self.window.set_status(f"已翻译并复制到剪贴板（{result.total_ms:.0f}ms）")
-            except Exception:
-                self.window.set_status(f"回复已翻译（{result.total_ms:.0f}ms）")
+            # 1) 自动补全：抢焦点后向游戏聊天框注入译文（高风险，默认关闭）
+            injected = False
+            if self.config.get("paste.auto_paste", False) and text.strip():
+                try:
+                    from ..services.input_injector import InputInjector
+
+                    delay_ms = float(self.config.get("paste.delay_ms", 10))
+                    logger.warning("自动补全已启用，正在向游戏聊天框注入译文（高风险功能）")
+                    n = InputInjector().inject_text(text, delay_ms=delay_ms)
+                    injected = n > 0
+                except Exception as e:
+                    logger.warning("自动补全异常: %s", e)
+
+            # 2) 悬浮窗兜底：无论注入是否成功，都弹回复草稿窗（可编辑 + 复制）
+            if text.strip():
+                self._show_reply_overlay(text, detail)
+                if injected:
+                    self.window.set_status(
+                        f"已自动补全到游戏聊天框（{result.total_ms:.0f}ms），确认后按 Enter 发送"
+                    )
+                else:
+                    self.window.set_status(
+                        f"已翻译，点「复制」后切回游戏按 Ctrl+V（{result.total_ms:.0f}ms）"
+                    )
+            else:
+                self._show_reply_overlay("（未识别到内容，请确认输入框有文字）", detail)
+                self.window.set_status("回复翻译完成，但内容为空 · " + detail)
         else:
-            # 截图翻译：弹到悬浮窗，避免遮挡游戏
+            # 截图翻译：弹到「阅读」悬浮窗（只读），避免遮挡游戏
             if result.ok:
                 detail = f"{result.total_ms:.0f}ms" + (" (缓存)" if result.cached else "")
-                self._show_overlay_result(result.translated, detail)
-                self.window.set_status(f"翻译完成 · {detail}")
+                if not result.translated or not result.translated.strip():
+                    # 模型返回空内容：截图可能没识别到文字，或聊天框为空
+                    logger.warning("截图翻译返回空内容，可能截图无聊天文字或模型未识别")
+                    self._show_overlay_result("（未识别到聊天内容，请确认截图区域包含聊天框）", detail)
+                    self.window.set_status("翻译完成，但未识别到内容 · " + detail)
+                else:
+                    self._show_overlay_result(result.translated, detail)
+                    self.window.set_status(f"翻译完成 · {detail}")
             else:
                 self.window.show_error(f"翻译失败: {result.error}")
 
     def _show_overlay_result(self, text: str, detail: str = ""):
-        """译文显示到悬浮窗，并按配置定位。"""
+        """译文显示到「阅读」悬浮窗，并按配置定位。"""
         position = self.config.get("overlay.position", "bottom-right")
         self.overlay.set_position(position)
         self.overlay.show_result(text, detail)
+
+    def _show_reply_overlay(self, text: str, detail: str = ""):
+        """回复草稿显示到「回复草稿」悬浮窗，并按配置定位。"""
+        position = self.config.get("overlay.position", "bottom-right")
+        self.reply_overlay.set_position(position)
+        self.reply_overlay.show_result(text, detail)
 
     def _on_task_failed(self, message: str):
         self.window.show_error(f"翻译异常: {message}")
@@ -299,9 +340,16 @@ class Application(QObject):
         self.config.set("language.ui", ui_lang)
         if cfg.get("overlay_position"):
             self.config.set("overlay.position", cfg["overlay_position"])
+        # 自动粘贴（高风险功能，默认关闭）
+        self.config.set("paste.auto_paste", bool(cfg.get("auto_paste", False)))
+        self.config.set("paste.delay_ms", int(cfg.get("paste_delay_ms", 10)))
         for key, value in cfg.get("hotkeys", {}).items():
             if value:
                 self.config.set(f"hotkeys.{key}", value)
+        # 清理已废弃的快捷键动作（如 toggle_overlay），避免旧配置残留导致冲突
+        hotkeys_data = self.config.data.get("hotkeys")
+        if isinstance(hotkeys_data, dict):
+            hotkeys_data.pop("toggle_overlay", None)
         if cfg.get("api_key"):
             self.secret_store.set_key(cfg["api_key"])
         self.config.save()

@@ -61,6 +61,33 @@ class ConfigStore:
         self.config_path = config_path or get_config_path()
         self._defaults = _load_defaults()
         self._data = self._load()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """配置迁移：把旧版本固化的配置值升级到新默认值（幂等）。
+
+        背景：用户本地 config.json 一旦保存过，就会覆盖 default_config.json 的新默认值。
+        这里对已知的"旧值需要强制升级"的键做自动修正，避免新版本默认值不生效。
+        """
+        changed = False
+        # image_detail: low -> high（low 会把截图降到 512×512，导致聊天文字糊、检测不到）
+        if self._data.get("api", {}).get("image_detail") == "low":
+            self._data.setdefault("api", {})["image_detail"] = "high"
+            changed = True
+        # max_tokens: 2048 -> 512（游戏聊天翻译一两句就够，过大拖慢生成）
+        if self._data.get("api", {}).get("max_tokens") == 2048:
+            self._data.setdefault("api", {})["max_tokens"] = 512
+            changed = True
+        # 清理已废弃的快捷键动作 toggle_overlay（历史残留，与 toggle_window 冲突）
+        hotkeys = self._data.get("hotkeys")
+        if hotkeys and "toggle_overlay" in hotkeys:
+            hotkeys.pop("toggle_overlay", None)
+            changed = True
+        if changed:
+            try:
+                self.save()
+            except Exception:
+                pass
 
     def _load(self) -> dict:
         if self.config_path.exists():

@@ -15,6 +15,7 @@ PROVIDERS = {
     "gemini": OpenAICompatProvider,
     "grok": OpenAICompatProvider,
     "kimi": OpenAICompatProvider,
+    "zhipu": OpenAICompatProvider,
     "ollama": OpenAICompatProvider,
 }
 

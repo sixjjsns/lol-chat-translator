@@ -24,9 +24,9 @@ class OpenAICompatProvider(BaseProvider):
         self.model = config.get("model", "deepseek-flash")
         self.timeout_connect = config.get("timeout_connect", 10)
         self.timeout_read = config.get("timeout_read", 30)
-        self.max_tokens = config.get("max_tokens", 2048)
+        self.max_tokens = config.get("max_tokens", 512)
         self.temperature = config.get("temperature", 0.7)
-        self.image_detail = config.get("image_detail", "low")
+        self.image_detail = config.get("image_detail", "high")
         self.api_key = api_key
         self._session = requests.Session()
 
@@ -113,8 +113,28 @@ class OpenAICompatProvider(BaseProvider):
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError):
             raise ProviderError("响应结构异常，缺少 choices", "server") from None
+
+        # 健壮性：部分视觉模型 content 可能是 None、空串、或列表（多模态结构）
+        if content is None:
+            content = ""
+        if isinstance(content, list):
+            # 多模态 content 数组：拼接所有 text 片段
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                elif isinstance(item, str):
+                    parts.append(item)
+            content = "".join(parts)
+
+        text = str(content).strip()
+        if not text:
+            logger.warning("视觉翻译返回空内容：模型未识别到聊天文字（截图可能无文字或模型拒答）")
+        else:
+            logger.info("视觉翻译返回内容长度=%d", len(text))
+
         return {
-            "raw": content,
+            "raw": text,
             "status": "success",
             "model": data.get("model", self.model),
             "usage": data.get("usage"),
@@ -152,32 +172,54 @@ class OpenAICompatProvider(BaseProvider):
     def _system_prompt(target_lang: str) -> str:
         lang_name = {"zh": "简体中文", "en": "英文", "ja": "日文", "ko": "韩文"}.get(target_lang, target_lang)
         return (
-            f"你是英雄联盟游戏聊天翻译助手。把截图里的外语聊天翻译成{lang_name}，让玩家能立刻看懂对方在说什么。\n\n"
-            "核心要求（最重要）：\n"
-            "1. 【意译优先，禁止机翻】翻译出对方真正想表达的意思，而不是逐字直译。\n"
-            "   - 错误机翻：「你在哪里死掉了」\n"
-            "   - 正确自然：「你咋死了」「你在哪死的」\n"
-            "   - 要像真人玩家之间聊天那样自然、口语化、接地气。\n"
-            "2. 【口语化】用游戏玩家日常的说法，可以带语气词（了、啊、吧、呗、吗），但不要过度。\n"
-            "3. 【保留专有名词】英雄名、技能名、装备名、游戏术语（gg、wp、afk、mid、top、gank、dragon、baron 等）保持原样或按国内玩家习惯叫法，不翻译。\n"
-            "4. 【保留语气】否定、反讽、嘲讽、调侃、求助、指挥等语气要翻出来，不要翻成平淡的陈述句。\n"
-            "5. 【忠实】对无法辨认的文字标记[不确定]，绝不编造、不脑补没说的话。\n"
-            "6. 【只输出译文】不要加解释、不要加引号、不要讲解。\n"
-            "7. 【逐条】如果截图有多条消息，按顺序逐条翻译，不同玩家的话不要合并成一条。"
+            f"你是英雄联盟国际服玩家之间的聊天翻译助手。把截图里队友发的消息翻译成{lang_name},"
+            "让玩家能立刻看懂对方在说什么——要像真人在打游戏时打出来的话,不是机翻。\n\n"
+            "【英雄联盟术语词典(翻译时保留原样或按国内玩家习惯,不要硬翻)】\n"
+            "位置:top(上单)、mid(中单)、jg/jungle(打野)、adc/bot(下路)、sup(辅助)\n"
+            "技能:ult/ultimate(大招)、cc(控制)、q/w/e/r(技能键)、smite(惩戒)、flash(闪现)、ignite(点燃)\n"
+            "资源:baron(大龙)、dragon/drake(小龙)、herald(先锋)、buff(增益)、blue/red(蓝/红 buff)、scuttle(河蟹)、tower/turret(塔)、inhib(水晶兵营)、nexus(基地)\n"
+            "战术:gank(抓人)、push(推)、defend(守)、split(分带)、roam(游走)、back/recall(回城)、ward(插眼)、group(集合)、engage(开团)、peel(保排)、kite(风筝)、focus(集火)、ss/mia(失踪)、re(回来了)、omw(在路上)、oom(没蓝)\n"
+            "情绪/俚语:gg、wp(well played)、gj/nice(打得好)、mb(my bad我的错)、glhf(开局问好)、nr(need report)、diff(差距:mid diff)、noob/feeder(菜/送)、afk(挂机)、ks(抢人头)、int(故意送/摆烂)、ez(嘲讽)、report(举报)、spam(刷屏)、xd、lol、rofl、zzzzz(韩)、wwwww(日)、ㅋㅋㅋ(韩笑)\n\n"
+            "【翻译核心要求】\n"
+            "1. 【真人语气,禁止机翻】把对方真正想表达的意思翻出来,不是逐字直译。\n"
+            "   - 例:对方打'where mid gank?' 应翻成'中单去哪了 不来抓吗' 而不是'中单去哪里了抓'\n"
+            "   - 例:对方打'jg diff' 应翻成'打野差距/打野太菜了' 而不是'打野差异'\n"
+            "   - 要像玩家实时打字,口语化、接地气、带语气词(了、啊、吧、吗、呢)。\n"
+            "2. 【情绪保留】嘲讽、求救、指挥、抱怨、调侃、鼓励、骂人这些语气都要翻出来,不要翻成平淡陈述。\n"
+            "   - 例:'gg ez' → '打得好 轻松拿下'(保留嘲讽)\n"
+            "   - 例:'jg where???' → '打野人呢???'(保留急躁)\n"
+            "   - 例:'mb sry' → '我的 错了'(保留歉意)\n"
+            "3. 【术语处理】上面的 LoL 术语要么保留英文(gg/gank/baron/ult),要么用国内玩家习惯叫法(大龙/抓人/大招),不要硬翻成生硬词组。\n"
+            "4. 【简短】玩家聊天通常 1-2 句,不要扩充解释、不要加引号、不要加'翻译:'前缀。\n"
+            "5. 【忠实,不脑补】对看不清/识别不出的部分标记[不确定],绝不编造对方没说的话。\n"
+            "6. 【逐条】截图有多条消息按顺序逐条翻译,不同玩家的话分开,不要合并成一句。\n"
+            "7. 【缩写/俚语识别】ss/mia=失踪,re=回来了,omw=在路上,oom=没蓝,这些要按意思翻而不是按字母翻。\n"
         )
 
     @staticmethod
     def _reply_system_prompt(target_lang: str) -> str:
         lang_name = {"zh": "简体中文", "en": "英文", "ja": "日文", "ko": "韩文"}.get(target_lang, target_lang)
         return (
-            "你是英雄联盟游戏聊天翻译助手。把用户输入的中文翻译成" + lang_name + "，用于在游戏内回复队友或嘲讽对手。\n\n"
-            "核心要求（最重要）：\n"
-            "1. 【地道口语，禁止机翻】翻译成" + lang_name + "母语玩家真正会打出来的话，不要中式英语、不要逐字硬译。\n"
-            "   - 错误机翻（中式英语）：\"you are very vegetable\"（你很菜）\n"
-            "   - 正确地道：\"you're so bad\" / \"nice feed\" / \"uninstall\"\n"
-            "   - 要符合" + lang_name + "玩家真实的聊天习惯和俚语。\n"
-            "2. 【保留游戏术语】英雄名、技能名、装备名、以及 gg、wp、afk、mid、top、gank、diff 等术语按游戏惯例处理，不硬翻。\n"
-            "3. 【保留情绪】调侃、反击、嘲讽、鼓励、指挥等情绪要自然流露，符合游戏氛围。\n"
-            "4. 【简短有力】游戏聊天通常一两句话，不要啰嗦、不要写作文。\n"
-            "5. 【只输出翻译结果】不要加引号、解释、前缀（如\"翻译：\"）。"
+            "你是英雄联盟国际服玩家之间的聊天翻译助手。把用户输入的中文翻译成" + lang_name + ",用于在游戏内回复队友或嘲讽对手。"
+            "翻译结果必须像" + lang_name + "母语玩家真正会打出来的话——不要中式外语、不要逐字硬译。\n\n"
+            "【英雄联盟术语词典(翻译时保留原样,不要硬翻)】\n"
+            "位置:top/mid/jg/adc/bot/sup\n"
+            "技能:ult(大招)、cc、smite、flash、ignite、q/w/e/r\n"
+            "资源:baron、dragon/drake、herald、buff、tower/turret、inhib、nexus、scuttle\n"
+            "战术:gank、push、defend、split、roam、back/recall、ward、group、engage、peel、kite、focus、ss/mia、re、omw、oom\n"
+            "俚语:gg、wp、gj、mb(my bad)、glhf、diff、noob、feeder、afk、ks、int、ez、report、xd、lol、rofl\n"
+            "韩语特有笑:ㅋㅋㅋ/kkkkk;日语特有笑:wwww/www;英语:lol/rofl/lmao\n\n"
+            "【翻译核心要求】\n"
+            "1. 【地道,禁止中式外语】翻成" + lang_name + "玩家真实打字习惯的俚语和句式,不要逐字翻译。\n"
+            "   - 错误(中式英语):'you are very vegetable'(你很菜) → 正确:'you're so bad' / 'nice feed' / 'uninstall'\n"
+            "   - 错误(中式日语):'あなたはとても野菜です' → 正确:'お前杂鱼すぎ' / '上手すぎ'\n"
+            "   - 错误(中式韩语):'너는 매우 야채다' → 正确:'개못함' / ' uninstall'\n"
+            "2. 【保留游戏术语】gg/wp/afk/mid/top/gank/diff/ult/baron/dragon 这些不要硬翻,按当地玩家习惯处理。\n"
+            "3. 【保留情绪】调侃、嘲讽、反击、鼓励、指挥、求救这些情绪都要自然流露,符合国际服游戏氛围。\n"
+            "   - 例:中文'你太菜了' → 英文'you're so bad' / 日文'下手すぎ' / 韩文'개못함'\n"
+            "   - 例:中文'打野差距' → 英文'jg diff' / 日文'jg diff' / 韩文'jg diff'\n"
+            "   - 例:中文'别送了' → 英文'stop feeding' / 日文'フィードすんな' / 韩文'빠져라'\n"
+            "4. 【简短有力】游戏聊天 1-2 句,不要啰嗦、不要写作文、不要加'翻译:'前缀、不要加引号。\n"
+            "5. 【该用俚语就用俚语】" + lang_name + "玩家间有约定俗成的游戏俚语,直接用,不要绕弯子翻译。\n"
+            "6. 【缩写优先】能缩写就缩写(ult 不写 ultimate、jg 不写 jungle、wp 不写 well played),符合实战打字速度。\n"
         )

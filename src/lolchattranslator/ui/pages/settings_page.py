@@ -7,6 +7,7 @@
 """
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QHBoxLayout,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -64,6 +66,7 @@ class SettingsPage(QWidget):
 
         self.tabs.addTab(self._build_provider_tab(), tr("settings.tab.provider"))
         self.tabs.addTab(self._build_language_tab(), tr("settings.tab.language"))
+        self.tabs.addTab(self._build_paste_tab(), tr("settings.tab.paste"))
         self.tabs.addTab(self._build_hotkey_tab(), tr("settings.tab.hotkey"))
 
         # 底部按钮
@@ -172,6 +175,38 @@ class SettingsPage(QWidget):
         layout.addStretch(1)
         return page
 
+    # --- 自动粘贴页（高风险功能） ---
+    def _build_paste_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(12, 16, 12, 12)
+        layout.setSpacing(14)
+
+        form = QFormLayout()
+        form.setSpacing(12)
+
+        self.auto_paste_check = QCheckBox(tr("settings.auto_paste"))
+        self.auto_paste_check.setToolTip(tr("settings.auto_paste_warn"))
+        form.addRow("", self.auto_paste_check)
+
+        self.paste_delay_spin = QSpinBox()
+        self.paste_delay_spin.setRange(1, 500)
+        self.paste_delay_spin.setSuffix(" ms")
+        self.paste_delay_spin.setValue(10)
+        self.paste_delay_label = QLabel(tr("settings.paste_delay"))
+        form.addRow(self.paste_delay_label, self.paste_delay_spin)
+
+        layout.addLayout(form)
+
+        self.paste_warn_label = QLabel(tr("settings.auto_paste_warn"))
+        self.paste_warn_label.setObjectName("muted")
+        self.paste_warn_label.setWordWrap(True)
+        self.paste_warn_label.setStyleSheet("color: #e5534b;")
+        layout.addWidget(self.paste_warn_label)
+
+        layout.addStretch(1)
+        return page
+
     def _fill_lang_combos(self):
         """填充源语言/目标语言下拉框（语言切换后刷新）。"""
         self.source_combo.clear()
@@ -235,6 +270,9 @@ class SettingsPage(QWidget):
         self.overlay_position_combo.setCurrentIndex(
             max(0, self.overlay_position_combo.findData(s.get("overlay.position", "bottom-right")))
         )
+        # 自动粘贴（默认关闭，高风险）
+        self.auto_paste_check.setChecked(bool(s.get("paste.auto_paste", False)))
+        self.paste_delay_spin.setValue(int(s.get("paste.delay_ms", 10)))
         # 快捷键
         for key, edit in self._hotkey_edits.items():
             edit.setText(s.get(f"hotkeys.{key}", DEFAULT_HOTKEYS.get(key, "")))
@@ -297,6 +335,8 @@ class SettingsPage(QWidget):
             "target_lang": self.target_combo.currentData(),
             "ui_lang": self.ui_lang_combo.currentData(),
             "overlay_position": self.overlay_position_combo.currentData(),
+            "auto_paste": self.auto_paste_check.isChecked(),
+            "paste_delay_ms": self.paste_delay_spin.value(),
             "hotkeys": hotkeys,
         }
 
@@ -306,7 +346,8 @@ class SettingsPage(QWidget):
         self.title_label.setText(tr("settings.title"))
         self.tabs.setTabText(0, tr("settings.tab.provider"))
         self.tabs.setTabText(1, tr("settings.tab.language"))
-        self.tabs.setTabText(2, tr("settings.tab.hotkey"))
+        self.tabs.setTabText(2, tr("settings.tab.paste"))
+        self.tabs.setTabText(3, tr("settings.tab.hotkey"))
         self.test_btn.setText(tr("settings.test"))
         self.source_label.setText(tr("settings.source_lang"))
         self.target_label.setText(tr("settings.target_lang"))
@@ -321,6 +362,10 @@ class SettingsPage(QWidget):
         self.overlay_position_combo.setCurrentIndex(
             max(0, self.overlay_position_combo.findData(cur_pos))
         )
+        self.auto_paste_check.setText(tr("settings.auto_paste"))
+        self.auto_paste_check.setToolTip(tr("settings.auto_paste_warn"))
+        self.paste_delay_label.setText(tr("settings.paste_delay"))
+        self.paste_warn_label.setText(tr("settings.auto_paste_warn"))
         self.reset_btn.setText(tr("settings.reset_hotkey"))
         self.hotkey_hint.setText(tr("settings.hotkey_hint"))
         self.clear_btn.setText(tr("settings.clear_key"))

@@ -73,13 +73,13 @@ class TranslationService:
                     ts, result = hit
                     ttl = cfg_behav.get("cache_ttl_seconds", 60)
                     if time.time() - ts < ttl:
-                        logger.info("命中缓存，跳过重复请求")
                         result = dict(result)
                         if isinstance(result.get("kind"), str):
                             result["kind"] = TaskKind(result["kind"])
                         result = TranslationResult(**result)
                         result.cached = True
                         result.total_ms = (time.perf_counter() - t_start) * 1000
+                        logger.info("命中缓存，跳过重复请求（总耗时 %.1fms）", result.total_ms)
                         return result
         prompt = self._build_prompt()
         try:
@@ -118,6 +118,13 @@ class TranslationService:
                     self._result_to_dict(result),
                 )
 
+        logger.info(
+            "截图翻译完成：图片处理 %.1fms / API 调用 %.1fms / 总耗时 %.1fms（模型=%s）",
+            result.img_ms,
+            result.api_ms,
+            result.total_ms,
+            result.model or "-",
+        )
         self._last_result = result
         return result
 
@@ -132,17 +139,26 @@ class TranslationService:
         if request.temperature is not None:
             provider.set_temperature(request.temperature)
 
+        t_api_start = time.perf_counter()
         try:
             raw = provider.text_translate(request.text, request.target_lang)
         except ProviderError as e:
             return self._error_result(e)
+        t_api = (time.perf_counter() - t_api_start) * 1000
 
         result = TranslationResult(
             kind=TaskKind.REPLY,
             translated=raw["raw"],
             status=raw["status"],
             model=raw.get("model", ""),
+            api_ms=round(t_api, 1),
             total_ms=round((time.perf_counter() - t_start) * 1000, 1),
+        )
+        logger.info(
+            "文本翻译完成：API 调用 %.1fms / 总耗时 %.1fms（模型=%s）",
+            result.api_ms,
+            result.total_ms,
+            result.model or "-",
         )
         self._last_result = result
         return result
