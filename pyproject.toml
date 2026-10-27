@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lol-chat-translator"
+version = "0.1.0"
+description = "A desktop screenshot translation tool for League of Legends (international server) in-game chat"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Zhang Zeyu" },
+]
+keywords = ["league-of-legends", "translation", "screenshot", "ocr", "chat", "gaming"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "PySide6>=6.6,<7",
+    "requests>=2.31",
+    "mss>=9.0",
+    "Pillow>=10.0",
+    "keyboard>=0.13.5",
+    "pystray>=0.19",
+    "pyperclip>=1.8",
+]
+
+[project.optional-dependencies]
+security = ["keyring>=24.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "ruff>=0.4",
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+lol-chat-translator = "lolchattranslator.app.application:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lolchattranslator = ["resources/**/*", "resources/icons/*", "resources/styles/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = [
+    "E501",
+    "N802",  # Qt 事件处理函数名需大写（如 paintEvent）
+    "N803",  # Qt 方法参数命名约定
+    "N806",  # Qt 信号等常量大写命名
+    "N815",  # Qt 信号 mixedCase 命名（如 regionSelected）
+]

@@ -1,0 +1,86 @@
+{
+  "api": {
+    "provider": "deepseek",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-flash",
+    "timeout_connect": 10,
+    "timeout_read": 30,
+    "max_tokens": 2048,
+    "temperature": 0.7,
+    "image_detail": "low"
+  },
+  "providers": {
+    "deepseek": {
+      "name": "DeepSeek",
+      "base_url": "https://api.deepseek.com",
+      "model": "deepseek-flash",
+      "needs_key": true
+    },
+    "gpt": {
+      "name": "OpenAI GPT",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini",
+      "needs_key": true
+    },
+    "gemini": {
+      "name": "Google Gemini",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "model": "gemini-2.0-flash",
+      "needs_key": true
+    },
+    "grok": {
+      "name": "xAI Grok",
+      "base_url": "https://api.x.ai/v1",
+      "model": "grok-2-vision-latest",
+      "needs_key": true
+    },
+    "kimi": {
+      "name": "Moonshot Kimi",
+      "base_url": "https://api.moonshot.cn/v1",
+      "model": "moonshot-v1-8k-vision-preview",
+      "needs_key": true
+    },
+    "ollama": {
+      "name": "本地 Ollama",
+      "base_url": "http://localhost:11434/v1",
+      "model": "qwen2.5vl:7b",
+      "needs_key": false
+    }
+  },
+  "capture": {
+    "region": null,
+    "max_dimension": 1600,
+    "jpeg_quality": 85,
+    "monitor": null
+  },
+  "hotkeys": {
+    "capture_translate": "f6",
+    "retranslate": "f7",
+    "copy_last": "f8",
+    "toggle_overlay": "home",
+    "select_region": "f9",
+    "cancel": "esc"
+  },
+  "overlay": {
+    "opacity": 0.92,
+    "font_size": 12,
+    "display_duration": 15,
+    "position": "bottom-right",
+    "always_on_top": true
+  },
+  "language": {
+    "source": "auto",
+    "target": "zh",
+    "ui": "zh",
+    "auto_detect": true
+  },
+  "glossary": {},
+  "behavior": {
+    "start_minimized": true,
+    "auto_start": false,
+    "max_concurrent_requests": 1,
+    "cache_enabled": true,
+    "cache_ttl_seconds": 60,
+    "log_chat_text": false
+  }
+}
