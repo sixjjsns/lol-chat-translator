@@ -85,10 +85,16 @@
 
 ## Installation / 安装
 
+### Download / 直接下载（免安装，推荐）
+
+前往 [Releases](https://github.com/sixjjsns/lol-chat-translator/releases) 下载最新版 `LoLChatTranslator-v1.0.0-win64.zip`，解压后双击 `LoLChatTranslator-onefile.exe` 即可运行，无需安装 Python。
+
+> Windows 可能弹出 SmartScreen 提示，点「更多信息」→「仍要运行」即可。
+
 ### Requirements / 环境要求
 
 - Windows 10/11
-- Python 3.11+（推荐 3.13）
+- Python 3.11+（推荐 3.13，仅源码运行需要）
 - 一个支持识图的 API Key（或本地 Ollama 实例）
 
 ### From source / 从源码运行
