@@ -1,4 +1,4 @@
-# LoL Chat Translator - 打包脚本
+# LOL国际服聊天框翻译 (LoL International Server Chat Translator) - 打包脚本
 # 用法：.venv\Scripts\python.exe -m PyInstaller 或直接运行本脚本
 # PowerShell: powershell -ExecutionPolicy Bypass -File build.ps1
 $ErrorActionPreference = "Stop"

@@ -18,7 +18,7 @@ def bootstrap() -> int:
         return 0
 
     qapp = QApplication(sys.argv)
-    qapp.setApplicationName("LoL Chat Translator")
+    qapp.setApplicationName("LOL国际服聊天框翻译")
     qapp.setOrganizationName("LoLChatTranslator")
 
     app = Application(qapp)

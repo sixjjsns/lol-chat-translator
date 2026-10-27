@@ -1,4 +1,4 @@
-"""LoL Chat Translator 启动入口。
+"""LOL国际服聊天框翻译 (LoL International Server Chat Translator) 启动入口。
 
 用法：
     python -m lolchattranslator

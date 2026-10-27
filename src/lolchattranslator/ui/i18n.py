@@ -10,8 +10,8 @@ _current_lang = "zh"
 # 文案字典
 MESSAGES = {
     "zh": {
-        "app.title": "LoL Chat Translator",
-        "app.brand": "LoL 翻译",
+        "app.title": "LOL国际服聊天框翻译",
+        "app.brand": "LOL 翻译",
         "nav.translate": "🖥  翻译",
         "nav.settings": "⚙  设置",
         "status.ready": "就绪 · 按 F6 截图翻译",
@@ -78,7 +78,7 @@ MESSAGES = {
         "hotkey.cancel": "取消/关闭",
     },
     "en": {
-        "app.title": "LoL Chat Translator",
+        "app.title": "LoL International Server Chat Translator",
         "app.brand": "LoL Translate",
         "nav.translate": "🖥  Translate",
         "nav.settings": "⚙  Settings",

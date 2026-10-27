@@ -1,4 +1,4 @@
-"""LoL Chat Translator 入口（项目根目录）。
+"""LOL国际服聊天框翻译 (LoL International Server Chat Translator) 入口（项目根目录）。
 
 用法：
     python main.py

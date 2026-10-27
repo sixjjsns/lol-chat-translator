@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         self._providers = providers
         self._settings = settings
         self._api_key = api_key
-        self.setWindowTitle("LoL Chat Translator")
+        self.setWindowTitle(tr("app.title"))
         self.resize(880, 680)
         self.setMinimumSize(700, 540)
         self._apply_icon()
