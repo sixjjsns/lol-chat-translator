@@ -45,5 +45,5 @@ logs/
 # PyInstaller
 *.manifest
 
-# Local data dir
-LoLChatTranslator/
+# Local data dir (仅匹配项目根目录下的用户数据目录，不误伤 src/lolchattranslator 源码包)
+/LoLChatTranslator/
