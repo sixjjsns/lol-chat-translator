@@ -94,9 +94,9 @@
 
 ### Download / 直接下载（免安装，推荐）
 
-前往 [Releases](https://github.com/sixjjsns/lol-chat-translator/releases) 下载最新版 `LoLChatTranslator-v1.0.0-win64.zip`，解压后双击 `LoLChatTranslator-onefile.exe` 即可运行，无需安装 Python。
+前往 [Releases](https://github.com/sixjjsns/lol-chat-translator/releases) 下载最新版 `LoLChatTranslator-v1.1.0-win64.zip`，解压后双击 `LoLChatTranslator-onefile.exe` 即可运行，无需安装 Python。
 
-Go to [Releases](https://github.com/sixjjsns/lol-chat-translator/releases), download `LoLChatTranslator-v1.0.0-win64.zip`, extract it, and double-click `LoLChatTranslator-onefile.exe` — no Python installation needed.
+Go to [Releases](https://github.com/sixjjsns/lol-chat-translator/releases), download `LoLChatTranslator-v1.1.0-win64.zip`, extract it, and double-click `LoLChatTranslator-onefile.exe` — no Python installation needed.
 
 > Windows 可能弹出 SmartScreen 提示，点「更多信息」→「仍要运行」即可。
 > Windows may show a SmartScreen warning — click "More info" → "Run anyway".
