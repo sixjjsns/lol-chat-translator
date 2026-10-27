@@ -1,8 +1,19 @@
+<p align="center">
+  <img src="assets/logo.png" alt="LoL Chat Translator" width="160" height="160">
+</p>
+
 # 英雄联盟国际服聊天框翻译
 
 > LoL Chat Translator — A desktop screenshot translation tool for League of Legends (international server) in-game chat.
 >
 > 一个 Windows 后台常驻的《英雄联盟》国际服游戏内聊天截图翻译工具。
+
+<p align="center">
+  <a href="https://github.com/sixjjsns/lol-chat-translator"><img src="https://img.shields.io/badge/GitHub-sixjjsns%2Flol--chat--translator-blue?logo=github" alt="GitHub"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="License"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.11%2B-blue?logo=python&logoColor=white" alt="Python"></a>
+  <img src="https://img.shields.io/badge/GUI-PySide6-41CD52?logo=qt" alt="PySide6">
+</p>
 
 **English** | [中文](#中文说明)
 
