@@ -168,7 +168,7 @@ pytest
 
 ## License / 许可证
 
-[MIT](LICENSE) © 2026 Zhang Zeyu / 张泽鱼
+[MIT](LICENSE) © 2026 sixjjsns
 
 ---
 
@@ -210,4 +210,4 @@ compliance with the game's terms of service.
 
 ### 许可证
 
-[MIT](LICENSE) © 2026 张泽鱼
+[MIT](LICENSE) © 2026 sixjjsns

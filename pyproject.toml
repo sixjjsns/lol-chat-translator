@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
-    { name = "Zhang Zeyu" },
+    { name = "sixjjsns" },
 ]
 keywords = ["league-of-legends", "translation", "screenshot", "ocr", "chat", "gaming"]
 classifiers = [
