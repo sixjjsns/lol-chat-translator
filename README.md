@@ -33,12 +33,17 @@
 
 ## Features / 功能特性
 
+![UI](docs/ui-v1.2.0.png)
+
+
 - **截图翻译 (Screenshot translation)** — 按 `F6` 截取聊天区域，视觉大模型识别并翻译，译文弹出到悬浮窗，不遮挡游戏画面。
-- **反向翻译 (Reverse translation)** — 在输入框输入中文，翻译成对方语言并自动复制到剪贴板，直接 `Ctrl+V` 粘贴回游戏回击。
+- **反向翻译 + 自动注入 (Reverse translation & injection)** — 在主窗口输入中文，按 `F10` 翻译成对方语言并**直接注入游戏聊天框**（可在设置里开关），按 Enter 发送；未开启或注入失败时自动复制兜底。
 - **多服务支持 (Multiple providers)** — DeepSeek、OpenAI GPT、Google Gemini、xAI Grok、Moonshot Kimi，以及本地 Ollama（无需 API Key、完全离线免费）。
 - **人性化滑块 (Naturalness slider)** — 拖动调节翻译「直译 ↔ 口语化」程度（映射为模型 temperature）。
+- **快捷短语 (Quick phrases)** — 6 句 LoL 高频用语，点一下直接翻译并注入，不用打字。
+- **现代化界面 (Modern UI)** — 卡片式布局、状态胶囊、Toast 轻提示、深色标题栏，跟随 Windows 深色模式。
 - **全局快捷键 (Global hotkeys)** — 无需切出游戏，7 个动作全部可自定义。
-- **译文悬浮窗 (Floating overlay)** — 无边框置顶半透明，可拖动、四角定位、双击关闭。
+- **只读译文悬浮窗 (Read-only overlay)** — 只承载队友消息的译文，无边框置顶半透明，可拖动、四角定位、双击关闭。
 - **界面语言切换 (Bilingual UI)** — 中文 / English 一键切换。
 - **系统托盘 (System tray)** — 后台静默运行，托盘菜单快捷操作。
 
@@ -94,7 +99,7 @@
 
 ### Download / 直接下载（免安装，推荐）
 
-前往 [Releases](https://github.com/sixjjsns/lol-chat-translator/releases) 下载最新版 `LoLChatTranslator-v1.1.0-win64.zip`，解压后双击 `LoLChatTranslator-onefile.exe` 即可运行，无需安装 Python。
+前往 [Releases](https://github.com/sixjjsns/lol-chat-translator/releases) 下载最新版 `LoLChatTranslator-v1.2.0-win64.zip`，解压后双击 `LoLChatTranslator-onefile.exe` 即可运行，无需安装 Python。
 
 Go to [Releases](https://github.com/sixjjsns/lol-chat-translator/releases), download `LoLChatTranslator-v1.1.0-win64.zip`, extract it, and double-click `LoLChatTranslator-onefile.exe` — no Python installation needed.
 
@@ -140,7 +145,7 @@ Then select "Local Ollama" in settings — no API key required, fully offline an
 | `F7` | 重新翻译 | Re-translate |
 | `F8` | 复制译文 | Copy translation |
 | `F9` | 选择聊天区域 | Select chat region |
-| `F10` | 翻译并复制（反向翻译） | Translate & copy (reply) |
+| `F10` | 翻译并注入（反向翻译） | Translate & inject (reply) |
 | `Home` | 显示/隐藏主窗口 | Show / hide window |
 | `Esc` | 取消/关闭 | Cancel / close |
 
@@ -151,7 +156,7 @@ Then select "Local Ollama" in settings — no API key required, fully offline an
 1. 首次启动，在「设置 → 翻译服务」填入 API Key（或选择本地 Ollama），进游戏后需选择「视频 → 无边框」模式。On first launch, enter your API key in "Settings → Translation Service" (or select local Ollama); in-game, set the video mode to "Borderless".
 2. 按 `F9` 框选游戏内的聊天区域（框选一次即可，之后可随时重新框选修改）。框选后只需按快捷键，不会弹出截图界面，而是直接显示结果，不影响正在运行的游戏。Press `F9` to select the chat region once (you can re-select anytime). Afterwards, pressing the hotkey shows the result directly — no screenshot window pops up, so your running game is unaffected.
 3. 游戏内按 `F6` 截图翻译，译文弹出悬浮窗。Press `F6` in-game to translate; the result pops up in the overlay.
-4. 想回击时，在主窗口输入框输入中文或任意语言，点「翻译并复制」（或按 `F10`），再 `Ctrl+V` 粘贴回游戏。To reply, type Chinese or any language in the input box, click "Translate & copy" (or press `F10`), then `Ctrl+V` back into the game.
+4. 想回击时，在主窗口输入中文并按 `F10`：开启「自动注入」时译文会直接打进游戏聊天框，按 Enter 发送；未开启时自动复制到剪贴板，回游戏 `Ctrl+V` 即可。To reply, type Chinese in the main window and press `F10`: with auto-inject on, the translation is typed straight into game chat (press Enter to send); otherwise it is copied to the clipboard for `Ctrl+V`.
 
 ---
 
@@ -217,11 +222,12 @@ compliance with the game's terms of service.
 ### 功能特性
 
 - **截图翻译**：`F6` 截取聊天区域，译文弹到悬浮窗，不遮挡游戏。
-- **反向翻译**：输入中文 → 翻译成对方语言 → 自动复制，`Ctrl+V` 粘贴回击。
+- **反向翻译**：输入中文 → 翻译成对方语言 → 直接注入游戏聊天框（或复制兜底）。
 - **多服务支持**：DeepSeek、GPT、Gemini、Grok、Kimi、本地 Ollama。
 - **人性化滑块**：调节翻译口语化 vs 直译程度。
 - **全局快捷键**：7 个动作全部可自定义。
-- **译文悬浮窗**：可拖动、四角定位、双击关闭。
+- **只读译文悬浮窗**：可拖动、四角定位、双击关闭。
+- **快捷短语**：6 句高频用语一键翻译并注入。
 - **界面语言切换**：中文 / English。
 
 ### 安装与使用
