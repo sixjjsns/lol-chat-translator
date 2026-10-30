@@ -1,4 +1,4 @@
-"""设置页面：翻译服务 / 语言 / 快捷键，用 QTabWidget 分页。
+﻿"""设置页面：翻译服务 / 语言 / 快捷键，用 QTabWidget 分页。
 
 对齐第一版完整功能：
 - 翻译服务：服务选择、API Key、Base URL、模型、测试连接
@@ -54,12 +54,8 @@ class SettingsPage(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 20)
+        layout.setContentsMargins(22, 18, 22, 16)
         layout.setSpacing(12)
-
-        self.title_label = QLabel(tr("settings.title"))
-        self.title_label.setObjectName("appTitle")
-        layout.addWidget(self.title_label)
 
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
@@ -72,9 +68,10 @@ class SettingsPage(QWidget):
         # 底部按钮
         btn_row = QHBoxLayout()
         self.clear_btn = QPushButton(tr("settings.clear_key"))
+        self.clear_btn.setObjectName("dangerBtn")
         self.clear_btn.clicked.connect(self._on_clear)
         self.save_btn = QPushButton(tr("settings.save"))
-        self.save_btn.setObjectName("primary")
+        self.save_btn.setObjectName("primaryBtn")
         self.save_btn.clicked.connect(self._on_save)
         btn_row.addWidget(self.clear_btn)
         btn_row.addStretch(1)
@@ -127,8 +124,12 @@ class SettingsPage(QWidget):
         layout.addLayout(form)
 
         self.test_btn = QPushButton(tr("settings.test"))
+        self.test_btn.setMinimumWidth(150)
         self.test_btn.clicked.connect(self._on_test)
-        layout.addWidget(self.test_btn)
+        test_row = QHBoxLayout()
+        test_row.addWidget(self.test_btn)
+        test_row.addStretch(1)
+        layout.addLayout(test_row)
 
         layout.addStretch(1)
         return page
@@ -343,7 +344,6 @@ class SettingsPage(QWidget):
     # --- 供外部调用 ---
     def apply_language(self):
         """刷新文案（语言切换后调用）。"""
-        self.title_label.setText(tr("settings.title"))
         self.tabs.setTabText(0, tr("settings.tab.provider"))
         self.tabs.setTabText(1, tr("settings.tab.language"))
         self.tabs.setTabText(2, tr("settings.tab.paste"))

@@ -1,10 +1,18 @@
 """应用核心：Application 类，编排 UI、翻译服务、快捷键、托盘、任务管理。
 
-架构（Qt 信号槽，替代旧的线程 + 动作队列）：
+架构（Qt 信号槽）：
 - 主线程：QApplication + MainWindow，所有 Qt 操作都在主线程。
 - keyboard 线程：全局快捷键回调，通过 Qt 信号安全回传主线程。
 - pystray 线程：托盘菜单回调，同样通过信号回传。
 - TaskManager（QThread）：翻译任务在 worker 线程执行，结果通过信号回传。
+
+v1.2.0 交互变更
+---------------
+- **删除游戏内 F10 输入悬浮窗**（ReplyOverlayWindow）：它挡画面、还要手动关。
+- F10 的链路变成：主窗口输入中文 → 翻译 → 直接注入游戏聊天框（核心注入逻辑不变）
+  → 底部 Toast 提示 2.6 秒自动消失。
+- 注入未开启或失败时自动复制到剪贴板，Toast 提示“回游戏 Ctrl+V”。
+- F6 的只读阅读悬浮窗保留（不挡输入，只是看译文）。
 """
 
 from PySide6.QtCore import QObject, Signal
@@ -19,9 +27,9 @@ from ..providers import available_providers
 from ..services.hotkey_service import DEFAULT_HOTKEYS, HotkeyManager
 from ..services.screenshot_service import ScreenshotService
 from ..services.tray_service import TrayService
+from ..ui.components.toast import Toast
 from ..ui.main_window import MainWindow
 from ..ui.region_selector import RegionSelector
-from ..ui.reply_overlay import ReplyOverlayWindow
 from ..ui.result_overlay import ResultOverlayWindow
 from .task_manager import TaskManager
 
@@ -55,6 +63,7 @@ class Application(QObject):
         self._last_png = None
         self._selecting = False
         self._closing = False
+        self._tray = None
 
         # 跨线程动作桥（keyboard/pystray -> 主线程）
         self._bridge = _Bridge()
@@ -67,15 +76,15 @@ class Application(QObject):
         providers = self._load_providers_meta()
         self.window = MainWindow(providers, self.config, self.secret_store.get_key())
 
-        # 译文阅读悬浮窗（F6 截图翻译结果，只读，避免遮挡游戏）
+        # 译文阅读悬浮窗（F6 截图翻译结果，只读）
         self.overlay = ResultOverlayWindow()
 
-        # 回复草稿悬浮窗（F10 反向翻译结果，可编辑 + 复制，用于发消息）
-        self.reply_overlay = ReplyOverlayWindow()
+        # 轻量提示条（替代旧的回复草稿悬浮窗）
+        self.toast = Toast()
 
-        # 连接信号
         self._connect_signals()
 
+    # ================= 初始化辅助 =================
     def _load_providers_meta(self) -> dict:
         """从配置读取 providers 元信息。"""
         meta = self.config.get("providers", {})
@@ -91,15 +100,15 @@ class Application(QObject):
 
     def _connect_signals(self):
         w = self.window
-        # 主窗口信号
         w.captureRequested.connect(self.capture_translate)
         w.selectRegionRequested.connect(self.select_region)
+        w.retranslateRequested.connect(self.retranslate)
+        w.copyRequested.connect(self.copy_last)
         w.replyRequested.connect(self.send_reply)
         w.naturalnessChanged.connect(self._on_naturalness_change)
         w.saveSettingsRequested.connect(self._save_settings)
         w.testConnectionRequested.connect(self.test_connection)
         w.clearKeyRequested.connect(self._clear_key)
-        # 任务管理器信号
         self.task_manager.finished.connect(self._on_task_finished)
         self.task_manager.failed.connect(self._on_task_failed)
 
@@ -108,6 +117,7 @@ class Application(QObject):
         setup_logging()
         # 应用已保存的界面语言
         self.window.apply_language(self.config.get("language.ui", "zh"))
+        self._refresh_ui_state()
         self.window.show()
 
         # 首次启动引导
@@ -117,6 +127,15 @@ class Application(QObject):
         self._register_hotkeys()
         self.task_manager.start()
         self._start_tray()
+
+    def _refresh_ui_state(self):
+        """把配置状态同步到界面上的状态胶囊。"""
+        provider = self.config.get("api.provider", "deepseek")
+        meta = self._load_providers_meta().get(provider, {})
+        self.window.set_provider_text(meta.get("name", provider))
+        self.window.set_auto_paste_state(bool(self.config.get("paste.auto_paste", False)))
+        self.window.set_region_state(bool(self.config.get("capture.region")))
+        self.window.set_hotkey_labels(self.config.get("hotkeys", DEFAULT_HOTKEYS))
 
     def shutdown(self):
         if self._closing:
@@ -179,6 +198,7 @@ class Application(QObject):
             warnings = self.hotkeys.register_all(mapping, handlers)
             for warn in warnings:
                 logger.warning(warn)
+            self.window.set_hotkey_labels(mapping)
         except Exception as e:
             logger.warning("快捷键注册失败: %s", e)
 
@@ -208,6 +228,8 @@ class Application(QObject):
             return
         region = self.config.get("capture.region")
         if not region:
+            self.window.set_status("还没有设置聊天区域 · 请先在游戏里按 F9 框选聊天框")
+            self.toast.show_message("请先框选聊天区域（F9）", "error")
             self.select_region()
             return
         try:
@@ -216,7 +238,8 @@ class Application(QObject):
             self.window.show_error(str(e))
             return
         self._last_png = png
-        self.window.set_status("识别中...")
+        self.window.set_busy(True)
+        self.window.set_status("识别中…")
         req = TranslationRequest(
             kind=TaskKind.IMAGE,
             image_bytes=png,
@@ -230,9 +253,10 @@ class Application(QObject):
         if self.task_manager.busy:
             return
         if self._last_png is None:
-            self.window.show_error("暂无最近截图，请先按 F6")
+            self.window.set_status("暂无最近截图，请先按 F6")
             return
-        self.window.set_status("重新识别中...")
+        self.window.set_busy(True)
+        self.window.set_status("重新识别中…")
         req = TranslationRequest(
             kind=TaskKind.IMAGE,
             image_bytes=self._last_png,
@@ -251,67 +275,83 @@ class Application(QObject):
             target_lang=target_lang,
             temperature=self._naturalness,
         )
-        self.window.set_status("翻译回复中...")
+        self.window.set_busy(True)
+        self.window.set_status("翻译回复中…")
         self.task_manager.enqueue(req)
 
     def reply_translate(self):
-        """快捷键触发：读取输入框内容，翻译并复制。"""
-        text = self.window.translation_page.reply_edit.toPlainText().strip()
+        """快捷键触发：读取主窗口输入框内容，翻译并注入。"""
+        text = self.window.translation_page.get_reply_text()
         if not text:
-            self.window.set_status("输入框为空，请先输入要翻译的内容")
+            self.window.set_status("输入框为空，请先在主窗口输入要发的话")
+            self.toast.show_message("先在主窗口输入中文，再按 F10", "info")
             return
         target = self.window.translation_page.get_target_lang()
         self.send_reply(text, target)
 
     # ================= 结果回传 =================
     def _on_task_finished(self, result: TranslationResult):
+        self.window.set_busy(False)
+
         if result.kind == TaskKind.REPLY:
-            # 反向翻译：自动补全进游戏聊天框 + 悬浮窗兜底（可编辑 + 复制）
-            self.window.set_reply_result(result.translated)
-            detail = f"{result.total_ms:.0f}ms" + (" (缓存)" if result.cached else "")
-            text = result.translated or ""
+            self._handle_reply_result(result)
+            return
 
-            # 1) 自动补全：抢焦点后向游戏聊天框注入译文（高风险，默认关闭）
-            injected = False
-            if self.config.get("paste.auto_paste", False) and text.strip():
-                try:
-                    from ..services.input_injector import InputInjector
-
-                    delay_ms = float(self.config.get("paste.delay_ms", 10))
-                    logger.warning("自动补全已启用，正在向游戏聊天框注入译文（高风险功能）")
-                    n = InputInjector().inject_text(text, delay_ms=delay_ms)
-                    injected = n > 0
-                except Exception as e:
-                    logger.warning("自动补全异常: %s", e)
-
-            # 2) 悬浮窗兜底：无论注入是否成功，都弹回复草稿窗（可编辑 + 复制）
-            if text.strip():
-                self._show_reply_overlay(text, detail)
-                if injected:
-                    self.window.set_status(
-                        f"已自动补全到游戏聊天框（{result.total_ms:.0f}ms），确认后按 Enter 发送"
-                    )
-                else:
-                    self.window.set_status(
-                        f"已翻译，点「复制」后切回游戏按 Ctrl+V（{result.total_ms:.0f}ms）"
-                    )
-            else:
-                self._show_reply_overlay("（未识别到内容，请确认输入框有文字）", detail)
-                self.window.set_status("回复翻译完成，但内容为空 · " + detail)
+        detail = f"{result.total_ms:.0f}ms" + (" (缓存)" if result.cached else "")
+        self.window.set_duration(detail)
+        if result.ok and (result.translated or "").strip():
+            self.window.set_result(result.translated)
+            self.window.set_status(f"翻译完成 · {detail}")
+            self._show_overlay_result(result.translated, detail)
+        elif result.ok:
+            logger.warning("截图翻译返回空内容，可能截图无聊天文字或模型未识别")
+            self.window.set_status("翻译完成，但未识别到内容 · " + detail)
+            self._show_overlay_result("（未识别到聊天内容，请确认截图区域包含聊天框）", detail)
         else:
-            # 截图翻译：弹到「阅读」悬浮窗（只读），避免遮挡游戏
-            if result.ok:
-                detail = f"{result.total_ms:.0f}ms" + (" (缓存)" if result.cached else "")
-                if not result.translated or not result.translated.strip():
-                    # 模型返回空内容：截图可能没识别到文字，或聊天框为空
-                    logger.warning("截图翻译返回空内容，可能截图无聊天文字或模型未识别")
-                    self._show_overlay_result("（未识别到聊天内容，请确认截图区域包含聊天框）", detail)
-                    self.window.set_status("翻译完成，但未识别到内容 · " + detail)
-                else:
-                    self._show_overlay_result(result.translated, detail)
-                    self.window.set_status(f"翻译完成 · {detail}")
-            else:
-                self.window.show_error(f"翻译失败: {result.error}")
+            self.window.show_error(f"翻译失败: {result.error}")
+            self.toast.show_message(f"翻译失败：{result.error}", "error")
+
+    def _handle_reply_result(self, result: TranslationResult):
+        """反向翻译结果：注入 / 复制 + Toast 提示（不再弹游戏内输入框）。"""
+        text = (result.translated or "").strip()
+        self.window.set_reply_result(text)
+        detail = f"{result.total_ms:.0f}ms" + (" (缓存)" if result.cached else "")
+
+        if not text:
+            self.window.set_status("回复翻译完成，但内容为空 · " + detail)
+            self.toast.show_message("未识别到内容，请重试", "error")
+            return
+
+        injected = 0
+        if self.config.get("paste.auto_paste", False):
+            try:
+                from ..services.input_injector import InputInjector
+
+                delay_ms = float(self.config.get("paste.delay_ms", 10))
+                logger.warning("自动注入已启用，正在向游戏聊天框注入译文（高风险功能）")
+                injected = InputInjector().inject_text(text, delay_ms=delay_ms)
+            except Exception as e:
+                logger.warning("自动注入异常: %s", e)
+                injected = 0
+
+        if injected <= 0:
+            self._copy_to_clipboard(text)
+            self.window.set_status(f"已复制译文 · 回游戏按 Ctrl+V 发送（{detail}）")
+            self.toast.show_message("已复制 · 回游戏按 Ctrl+V", "info")
+        else:
+            self.window.set_status(f"已注入游戏聊天框 · 按 Enter 发送（{detail}）")
+            self.toast.show_message("已注入游戏聊天框 · 按 Enter 发送", "ok")
+
+    @staticmethod
+    def _copy_to_clipboard(text: str) -> bool:
+        try:
+            import pyperclip
+
+            pyperclip.copy(text)
+            return True
+        except Exception as e:
+            logger.warning("复制到剪贴板失败: %s", e)
+            return False
 
     def _show_overlay_result(self, text: str, detail: str = ""):
         """译文显示到「阅读」悬浮窗，并按配置定位。"""
@@ -319,14 +359,10 @@ class Application(QObject):
         self.overlay.set_position(position)
         self.overlay.show_result(text, detail)
 
-    def _show_reply_overlay(self, text: str, detail: str = ""):
-        """回复草稿显示到「回复草稿」悬浮窗，并按配置定位。"""
-        position = self.config.get("overlay.position", "bottom-right")
-        self.reply_overlay.set_position(position)
-        self.reply_overlay.show_result(text, detail)
-
     def _on_task_failed(self, message: str):
+        self.window.set_busy(False)
         self.window.show_error(f"翻译异常: {message}")
+        self.toast.show_message(f"翻译异常：{message}", "error")
 
     # ================= 设置 =================
     def _save_settings(self, cfg: dict):
@@ -340,7 +376,7 @@ class Application(QObject):
         self.config.set("language.ui", ui_lang)
         if cfg.get("overlay_position"):
             self.config.set("overlay.position", cfg["overlay_position"])
-        # 自动粘贴（高风险功能，默认关闭）
+        # 自动注入（高风险功能，默认关闭）
         self.config.set("paste.auto_paste", bool(cfg.get("auto_paste", False)))
         self.config.set("paste.delay_ms", int(cfg.get("paste_delay_ms", 10)))
         for key, value in cfg.get("hotkeys", {}).items():
@@ -353,9 +389,11 @@ class Application(QObject):
         if cfg.get("api_key"):
             self.secret_store.set_key(cfg["api_key"])
         self.config.save()
-        # 应用界面语言 + 重新注册快捷键
+
+        # 应用界面语言 + 重新注册快捷键 + 刷新状态胶囊
         self.window.apply_language(ui_lang)
         self._register_hotkeys()
+        self._refresh_ui_state()
         self.window.set_status("设置已保存" if ui_lang == "zh" else "Settings saved")
 
     def _clear_key(self):
@@ -364,9 +402,8 @@ class Application(QObject):
 
     def test_connection(self, cfg: dict = None):
         """测试连接：优先用传入的临时配置，否则用已保存配置。"""
-        self.window.set_status("测试连接中...")
+        self.window.set_status("测试连接中…")
         if cfg:
-            # 用临时配置测试（不落盘）
             tmp_cfg = {
                 "base_url": cfg["base_url"],
                 "model": cfg["model"],
@@ -394,7 +431,6 @@ class Application(QObject):
             self.window.set_status("连接测试完成")
             return
 
-        # 用已保存配置测试
         result = self.translation_service.test_connection()
         if result.get("ok"):
             self.window.settings_page.set_status(f"连接成功，模型：{result.get('model', '')}")
@@ -422,22 +458,22 @@ class Application(QObject):
             self.window.hide()
         else:
             self.window.show()
+            self.window.raise_()
+            self.window.activateWindow()
 
     def cancel_current(self):
         self.window.hide()
 
     def copy_last(self):
-        try:
-            import pyperclip
-
-            text = self.window.translation_page.get_result()
-            if text:
-                pyperclip.copy(text)
-                self.window.set_status("已复制译文")
-            else:
-                self.window.set_status("暂无译文可复制")
-        except Exception as e:
-            self.window.set_status(f"复制失败: {e}")
+        text = self.window.translation_page.get_result()
+        if not text:
+            self.window.set_status("暂无译文可复制")
+            return
+        if self._copy_to_clipboard(text):
+            self.window.set_status("已复制译文")
+            self.toast.show_message("已复制译文", "info")
+        else:
+            self.window.set_status("复制失败")
 
     def _on_naturalness_change(self, value: int):
         """人性化滑块（0~100）映射为 temperature（0~1.0）。"""
@@ -457,7 +493,9 @@ class Application(QObject):
         self._selecting = False
         self.config.set("capture.region", region)
         self.config.save()
+        self.window.set_region_state(True)
         self.window.set_status("已保存截图区域")
+        self.toast.show_message("截图区域已保存", "ok")
 
     def _on_region_cancelled(self):
         self._selecting = False
