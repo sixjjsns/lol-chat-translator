@@ -99,7 +99,7 @@
 
 ### Download / 直接下载（免安装，推荐）
 
-前往 [Releases](https://github.com/sixjjsns/lol-chat-translator/releases) 下载最新版 `LoLChatTranslator-v1.2.0-win64.zip`，解压后双击 `LoLChatTranslator-onefile.exe` 即可运行，无需安装 Python。
+前往 [Releases](https://github.com/sixjjsns/lol-chat-translator/releases) 下载最新版 `LoLChatTranslator-v*-win64.exe`，双击即可运行，无需安装 Python（也可以直接 `python main.py` 从源码运行）。
 
 Go to [Releases](https://github.com/sixjjsns/lol-chat-translator/releases), download `LoLChatTranslator-v1.1.0-win64.zip`, extract it, and double-click `LoLChatTranslator-onefile.exe` — no Python installation needed.
 
