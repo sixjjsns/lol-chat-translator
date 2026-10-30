@@ -47,3 +47,6 @@ logs/
 
 # Local data dir (仅匹配项目根目录下的用户数据目录，不误伤 src/lolchattranslator 源码包)
 /LoLChatTranslator/
+
+# 本地交接文档（仅本地保留，不上传 GitHub）
+docs/LOCAL_AI_HANDOVER.md
