@@ -1,4 +1,4 @@
-﻿"""主窗口：品牌侧边栏 + 顶栏 + 页面容器 + 状态栏（v1.2.0 重制）。
+"""主窗口：品牌侧边栏 + 顶栏 + 页面容器 + 状态栏（v1.2.0 重制）。
 
 视觉结构
 --------
@@ -48,7 +48,7 @@ from .pages.settings_page import SettingsPage
 from .pages.translation_page import TranslationPage
 from .theme import build_stylesheet
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 
 def _asset_path(name: str) -> str:
@@ -260,6 +260,7 @@ class MainWindow(QMainWindow):
         for action, default in (
             ("capture_translate", "F6"),
             ("reply_translate", "F10"),
+            ("toggle_overlay", "F11"),
             ("retranslate", "F7"),
             ("copy_last", "F8"),
         ):

@@ -78,11 +78,8 @@ class ConfigStore:
         if self._data.get("api", {}).get("max_tokens") == 2048:
             self._data.setdefault("api", {})["max_tokens"] = 512
             changed = True
-        # 清理已废弃的快捷键动作 toggle_overlay（历史残留，与 toggle_window 冲突）
-        hotkeys = self._data.get("hotkeys")
-        if hotkeys and "toggle_overlay" in hotkeys:
-            hotkeys.pop("toggle_overlay", None)
-            changed = True
+        # v1.2.1 起 toggle_overlay 重新启用（F11 隐藏/呼出译文悬浮窗），
+        # 历史版本曾把它当作废弃键删除，这里不再删除（新默认值由深合并补入）。
         if changed:
             try:
                 self.save()

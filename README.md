@@ -43,7 +43,7 @@
 - **快捷短语 (Quick phrases)** — 6 句 LoL 高频用语，点一下直接翻译并注入，不用打字。
 - **现代化界面 (Modern UI)** — 卡片式布局、状态胶囊、Toast 轻提示、深色标题栏，跟随 Windows 深色模式。
 - **全局快捷键 (Global hotkeys)** — 无需切出游戏，7 个动作全部可自定义。
-- **只读译文悬浮窗 (Read-only overlay)** — 只承载队友消息的译文，无边框置顶半透明，可拖动、四角定位、双击关闭。
+- **只读译文悬浮窗 (Read-only overlay)** — 只承载队友消息的译文。任意位置可拖动、四角定位、双击关闭；默认 15 秒自动隐藏（悬停暂停），按 `F11` 隐藏/呼出，右键可开「鼠标穿透」完全不挡操作。
 - **界面语言切换 (Bilingual UI)** — 中文 / English 一键切换。
 - **系统托盘 (System tray)** — 后台静默运行，托盘菜单快捷操作。
 
@@ -146,6 +146,7 @@ Then select "Local Ollama" in settings — no API key required, fully offline an
 | `F8` | 复制译文 | Copy translation |
 | `F9` | 选择聊天区域 | Select chat region |
 | `F10` | 翻译并注入（反向翻译） | Translate & inject (reply) |
+| `F11` | 显示/隐藏译文悬浮窗 | Show / hide overlay |
 | `Home` | 显示/隐藏主窗口 | Show / hide window |
 | `Esc` | 取消/关闭 | Cancel / close |
 
@@ -155,7 +156,7 @@ Then select "Local Ollama" in settings — no API key required, fully offline an
 
 1. 首次启动，在「设置 → 翻译服务」填入 API Key（或选择本地 Ollama），进游戏后需选择「视频 → 无边框」模式。On first launch, enter your API key in "Settings → Translation Service" (or select local Ollama); in-game, set the video mode to "Borderless".
 2. 按 `F9` 框选游戏内的聊天区域（框选一次即可，之后可随时重新框选修改）。框选后只需按快捷键，不会弹出截图界面，而是直接显示结果，不影响正在运行的游戏。Press `F9` to select the chat region once (you can re-select anytime). Afterwards, pressing the hotkey shows the result directly — no screenshot window pops up, so your running game is unaffected.
-3. 游戏内按 `F6` 截图翻译，译文弹出悬浮窗。Press `F6` in-game to translate; the result pops up in the overlay.
+3. 游戏内按 `F6` 截图翻译，译文弹出悬浮窗；按 `F11` 可随时收起/呼出。Press `F6` in-game to translate; the result pops up in the overlay. Press `F11` to hide or bring it back.
 4. 想回击时，在主窗口输入中文并按 `F10`：开启「自动注入」时译文会直接打进游戏聊天框，按 Enter 发送；未开启时自动复制到剪贴板，回游戏 `Ctrl+V` 即可。To reply, type Chinese in the main window and press `F10`: with auto-inject on, the translation is typed straight into game chat (press Enter to send); otherwise it is copied to the clipboard for `Ctrl+V`.
 
 ---

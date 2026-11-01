@@ -1,32 +1,52 @@
-"""译文阅读悬浮窗:独立的置顶窗口,显示"队友说了什么"(F6 截图翻译结果)。
+"""译文阅读悬浮窗（v1.2.1 重写）：不挡操作、任意位置可拖、绝不跑出屏幕。
 
-与回复草稿悬浮窗(reply_overlay,显示"你要发出去的话")严格区分:
-- 本窗是**只读**的,用于"看懂队友消息",不能编辑、不能发送。
-- 回复草稿悬浮窗才是可编辑 + 复制的「草稿框」。
-
-特性:
-- 无边框、置顶、半透明背景
-- 可拖动(按住窗口空白区域拖)
-- 可关闭(Esc / 右键菜单 / 双击)
-- 位置由设置页"悬浮窗位置"下拉框预选(不在悬浮窗上加按钮)
+v1.2.1 修复的问题
+----------------
+1. **拖不动**：旧版正文 QLabel 开了 `TextSelectableByMouse`，把鼠标按下事件吃掉了，
+   只有标题栏和边距那几像素能拖。现在正文不再抢鼠标事件，**按住窗口任意位置都能拖**，
+   复制译文移到右键菜单里。
+2. **译文跑出屏幕**：旧版先定位再 `adjustSize()`，窗口变大后下半截就伸到屏幕外；
+   而且长译文时窗口宽度超过屏幕。现在先调整尺寸、限制最大宽高，再把窗口**钳制在
+   屏幕可用区域内**，四个角都不会越界。
+3. **挡住鼠标互动**：新增
+   - 自动隐藏（默认 15 秒，鼠标悬停时暂停计时，移开重新计时；0 = 常驻）；
+   - 右键菜单「鼠标穿透」：开启后点击直接穿过窗口落到游戏里（此时靠 F11 关闭）；
+   - 全局快捷键 **F11** 隐藏/呼出（由 App 层实现）。
 """
-from PySide6.QtCore import Qt, Signal
+
+from __future__ import annotations
+
+from PySide6.QtCore import QRect, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
+    QHBoxLayout,
     QLabel,
     QMenu,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
+MARGIN = 16
+MIN_WIDTH = 240
+MAX_WIDTH_RATIO = 0.55
+MAX_HEIGHT_RATIO = 0.45
+
 
 class ResultOverlayWindow(QWidget):
-    """译文阅读悬浮窗口(F6 截图翻译结果,只读)。"""
+    """译文阅读悬浮窗口（F6 截图翻译结果，只读）。"""
 
     closed = Signal()
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, display_duration: int = 15, parent=None):
+        super().__init__(parent)
+        self._display_duration = max(0, int(display_duration))
+        self._position = "bottom-right"
+        self._penetrate = False
+        self._drag_offset = None
+        self._last_text = ""
+        self._last_detail = ""
+
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -34,10 +54,22 @@ class ResultOverlayWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setMouseTracking(True)
 
+        # 自动隐藏定时器（悬停暂停）
+        self._auto_hide = QTimer(self)
+        self._auto_hide.setSingleShot(True)
+        self._auto_hide.timeout.connect(self.hide)
+
+        self._build_ui()
+        self.resize(380, 170)
+
+    # ------------------------------------------------------------------
+    def _build_ui(self):
+        self.setObjectName("overlayRoot")
         self.setStyleSheet("""
             QWidget#overlayRoot {
-                background-color: rgba(13, 21, 32, 230);
+                background-color: rgba(13, 21, 32, 240);
                 border: 1px solid #c9a24b;
                 border-radius: 10px;
             }
@@ -46,71 +78,174 @@ class ResultOverlayWindow(QWidget):
                 font-size: 12px;
                 font-weight: 600;
             }
+            QLabel#overlayGrip {
+                color: #64748b;
+                font-size: 13px;
+            }
             QLabel#overlayText {
                 color: #e6edf3;
                 font-size: 14px;
             }
+            QPushButton#overlayClose {
+                background: transparent;
+                border: none;
+                color: #8494a5;
+                font-size: 15px;
+                padding: 0;
+            }
+            QPushButton#overlayClose:hover {
+                color: #f87171;
+            }
         """)
 
-        self._build_ui()
-        self._drag_offset = None
-
-        self.resize(360, 180)
-
-    def _build_ui(self):
-        self.setObjectName("overlayRoot")
-
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 10, 14, 12)
-        root.setSpacing(6)
+        root.setContentsMargins(14, 8, 10, 10)
+        root.setSpacing(4)
 
-        # 标题栏
+        top = QHBoxLayout()
+        top.setSpacing(6)
+
+        grip = QLabel("≡")
+        grip.setObjectName("overlayGrip")
+        grip.setToolTip("按住窗口任意位置拖动")
+
         self.title_label = QLabel("译文")
         self.title_label.setObjectName("overlayTitle")
-        root.addWidget(self.title_label)
 
-        # 译文内容(只读)
+        self.close_btn = QPushButton("×")
+        self.close_btn.setObjectName("overlayClose")
+        self.close_btn.setToolTip("关闭（按 F11 呼出）")
+        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_btn.setFixedSize(20, 20)
+        self.close_btn.clicked.connect(self._on_close)
+
+        top.addWidget(grip)
+        top.addWidget(self.title_label)
+        top.addStretch(1)
+        top.addWidget(self.close_btn)
+        root.addLayout(top)
+
         self.text_label = QLabel("")
         self.text_label.setObjectName("overlayText")
         self.text_label.setWordWrap(True)
-        self.text_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.text_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.text_label.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+        # 注意：不开启 TextSelectableByMouse —— 那会把鼠标事件吃掉，导致拖不动
         root.addWidget(self.text_label, 1)
 
-    # --- 显示译文 ---
-    def show_result(self, text: str, detail: str = ""):
-        self.text_label.setText(text)
-        if detail:
-            self.title_label.setText(f"译文 · {detail}")
-        else:
-            self.title_label.setText("译文")
+    # ------------------------------------------------------------------
+    # 显示 / 定位
+    # ------------------------------------------------------------------
+    def set_display_duration(self, seconds: int):
+        self._display_duration = max(0, int(seconds))
+
+    def show_result(self, text: str, detail: str = "", position: str | None = None):
+        self._last_text = (text or "").strip()
+        self._last_detail = (detail or "").strip()
+        self.text_label.setText(self._last_text)
+        self.title_label.setText(f"译文 · {self._last_detail}" if self._last_detail else "译文")
+        if position:
+            self._position = position
+
+        # 先调尺寸（钳制最大宽高），再定位（钳制到屏幕内）——顺序很关键
         self.adjustSize()
+        self._clamp_size()
+        self._apply_position()
+
         self.show()
         self.raise_()
+        self._restart_auto_hide()
 
     def set_position(self, position: str):
-        """定位到屏幕角落:top-left/top-right/bottom-left/bottom-right。"""
+        self._position = position
+
+    def _clamp_size(self):
         screen = QApplication.primaryScreen()
         if not screen:
             return
         geo = screen.availableGeometry()
-        margin = 24
-        x = geo.left() + margin
-        y = geo.top() + margin
-        w = self.width()
-        h = self.height()
+        max_w = max(MIN_WIDTH, int(geo.width() * MAX_WIDTH_RATIO))
+        max_h = max(120, int(geo.height() * MAX_HEIGHT_RATIO))
+        new_w = min(max(self.width(), MIN_WIDTH), max_w)
+        new_h = min(self.height(), max_h)
+        if new_w != self.width() or new_h != self.height():
+            self.resize(new_w, new_h)
 
-        if position in ("top-right", "bottom-right"):
-            x = geo.right() - w - margin
-        if position in ("bottom-left", "bottom-right"):
-            y = geo.bottom() - h - margin
-
+    def _apply_position(self):
+        screen = QApplication.primaryScreen()
+        if not screen:
+            return
+        x, y = self.compute_position(
+            self._position, self.width(), self.height(), screen.availableGeometry(), MARGIN
+        )
         self.move(x, y)
 
-    # --- 拖动 ---
+    @staticmethod
+    def compute_position(position: str, width: int, height: int, geo: QRect, margin: int = MARGIN):
+        """按角落计算窗口左上角，并钳制在可用区域内（独立成函数便于单测）。"""
+        x = geo.x() + margin
+        y = geo.y() + margin
+
+        if position in ("top-right", "bottom-right"):
+            x = geo.x() + geo.width() - width - margin
+        if position in ("bottom-left", "bottom-right"):
+            y = geo.y() + geo.height() - height - margin
+
+        min_x = geo.x() + margin
+        min_y = geo.y() + margin
+        max_x = geo.x() + geo.width() - width - margin
+        max_y = geo.y() + geo.height() - height - margin
+
+        # 窗口比屏幕还宽/高时，至少保证左上角落在屏幕内
+        if max_x < min_x:
+            max_x = min_x
+        if max_y < min_y:
+            max_y = min_y
+
+        return (max(min_x, min(x, max_x)), max(min_y, min(y, max_y)))
+
+    # ------------------------------------------------------------------
+    # 自动隐藏
+    # ------------------------------------------------------------------
+    def _restart_auto_hide(self):
+        self._auto_hide.stop()
+        if self._display_duration > 0:
+            self._auto_hide.start(self._display_duration * 1000)
+
+    def enterEvent(self, event):
+        if self._auto_hide.isActive():
+            self._auto_hide.stop()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if self.isVisible() and not self._penetrate:
+            self._restart_auto_hide()
+        super().leaveEvent(event)
+
+    def hideEvent(self, event):
+        self._auto_hide.stop()
+        super().hideEvent(event)
+
+    # ------------------------------------------------------------------
+    # 鼠标穿透
+    # ------------------------------------------------------------------
+    def set_penetration(self, enabled: bool):
+        self._penetrate = bool(enabled)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, self._penetrate)
+
+    @property
+    def penetrate(self) -> bool:
+        return self._penetrate
+
+    # ------------------------------------------------------------------
+    # 拖动 / 双击 / 右键 / 键盘
+    # ------------------------------------------------------------------
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._drag_offset = (
+                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            )
             event.accept()
 
     def mouseMoveEvent(self, event):
@@ -123,19 +258,42 @@ class ResultOverlayWindow(QWidget):
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.hide()
-            self.closed.emit()
+            self._on_close()
 
     def contextMenuEvent(self, event):
         menu = QMenu(self)
-        close_action = menu.addAction("关闭")
+
+        copy_action = menu.addAction("复制译文")
+        copy_action.triggered.connect(self._copy_text)
+
+        penetrate_action = menu.addAction("鼠标穿透（点穿到游戏，F11 关闭）")
+        penetrate_action.setCheckable(True)
+        penetrate_action.setChecked(self._penetrate)
+        penetrate_action.triggered.connect(self.set_penetration)
+
+        menu.addSeparator()
+        close_action = menu.addAction("关闭（F11 呼出）")
         close_action.triggered.connect(self._on_close)
+
         menu.exec(event.globalPos())
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
             self._on_close()
+        else:
+            super().keyPressEvent(event)
+
+    def _copy_text(self):
+        if not self._last_text:
+            return
+        try:
+            import pyperclip
+
+            pyperclip.copy(self._last_text)
+        except Exception:
+            pass
 
     def _on_close(self):
+        self._auto_hide.stop()
         self.hide()
         self.closed.emit()

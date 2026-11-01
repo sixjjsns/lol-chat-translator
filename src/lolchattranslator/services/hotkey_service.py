@@ -18,6 +18,7 @@ DEFAULT_HOTKEYS = {
     "toggle_window": "home",
     "select_region": "f9",
     "reply_translate": "f10",
+    "toggle_overlay": "f11",
     "cancel": "esc",
 }
 

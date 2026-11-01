@@ -101,7 +101,12 @@ MESSAGES = {
         "hotkey.toggle_window": "显示/隐藏主窗口",
         "hotkey.select_region": "选择聊天区域",
         "hotkey.reply_translate": "翻译并注入",
+        "hotkey.toggle_overlay": "显示/隐藏译文悬浮窗",
         "hotkey.cancel": "取消/关闭",
+        # 译文悬浮窗
+        "settings.overlay_duration": "译文悬浮窗自动隐藏：",
+        "settings.overlay_duration_never": "常驻",
+        "settings.overlay_duration_hint": "到时间自动隐藏，鼠标悬停时暂停计时；设 0 表示常驻。隐藏后按 F11 呼出。",
     },
     "en": {
         "app.title": "LoL International Server Chat Translator",
@@ -190,7 +195,11 @@ MESSAGES = {
         "hotkey.toggle_window": "Show/Hide Window",
         "hotkey.select_region": "Select Chat Region",
         "hotkey.reply_translate": "Translate & Inject",
+        "hotkey.toggle_overlay": "Show/Hide Overlay",
         "hotkey.cancel": "Cancel/Close",
+        "settings.overlay_duration": "Overlay auto-hide:",
+        "settings.overlay_duration_never": "Keep forever",
+        "settings.overlay_duration_hint": "Auto-hide after this many seconds (hover pauses the timer); 0 = keep forever. Press F11 to bring it back.",
     },
 }
 

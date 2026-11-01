@@ -1,4 +1,4 @@
-﻿"""设置页面：翻译服务 / 语言 / 快捷键，用 QTabWidget 分页。
+"""设置页面：翻译服务 / 语言 / 快捷键，用 QTabWidget 分页。
 
 对齐第一版完整功能：
 - 翻译服务：服务选择、API Key、Base URL、模型、测试连接
@@ -40,6 +40,7 @@ class SettingsPage(QWidget):
         "toggle_window",
         "select_region",
         "reply_translate",
+        "toggle_overlay",
         "cancel",
     ]
 
@@ -172,6 +173,19 @@ class SettingsPage(QWidget):
         self.overlay_position_label = QLabel(tr("settings.overlay_position"))
         form.addRow(self.overlay_position_label, self.overlay_position_combo)
 
+        # 译文悬浮窗自动隐藏时长
+        self.overlay_duration_spin = QSpinBox()
+        self.overlay_duration_spin.setRange(0, 300)
+        self.overlay_duration_spin.setSuffix(" 秒")
+        self.overlay_duration_spin.setSpecialValueText(tr("settings.overlay_duration_never"))
+        self.overlay_duration_label = QLabel(tr("settings.overlay_duration"))
+        form.addRow(self.overlay_duration_label, self.overlay_duration_spin)
+
+        self.overlay_duration_hint = QLabel(tr("settings.overlay_duration_hint"))
+        self.overlay_duration_hint.setObjectName("muted")
+        self.overlay_duration_hint.setWordWrap(True)
+        form.addRow("", self.overlay_duration_hint)
+
         layout.addLayout(form)
         layout.addStretch(1)
         return page
@@ -271,6 +285,7 @@ class SettingsPage(QWidget):
         self.overlay_position_combo.setCurrentIndex(
             max(0, self.overlay_position_combo.findData(s.get("overlay.position", "bottom-right")))
         )
+        self.overlay_duration_spin.setValue(int(s.get("overlay.display_duration", 15)))
         # 自动粘贴（默认关闭，高风险）
         self.auto_paste_check.setChecked(bool(s.get("paste.auto_paste", False)))
         self.paste_delay_spin.setValue(int(s.get("paste.delay_ms", 10)))
@@ -336,6 +351,7 @@ class SettingsPage(QWidget):
             "target_lang": self.target_combo.currentData(),
             "ui_lang": self.ui_lang_combo.currentData(),
             "overlay_position": self.overlay_position_combo.currentData(),
+            "overlay_duration": self.overlay_duration_spin.value(),
             "auto_paste": self.auto_paste_check.isChecked(),
             "paste_delay_ms": self.paste_delay_spin.value(),
             "hotkeys": hotkeys,
@@ -354,6 +370,9 @@ class SettingsPage(QWidget):
         self.lang_hint.setText(tr("settings.lang_hint"))
         self.ui_lang_label.setText(tr("settings.ui_lang"))
         self.overlay_position_label.setText(tr("settings.overlay_position"))
+        self.overlay_duration_label.setText(tr("settings.overlay_duration"))
+        self.overlay_duration_spin.setSpecialValueText(tr("settings.overlay_duration_never"))
+        self.overlay_duration_hint.setText(tr("settings.overlay_duration_hint"))
         # 刷新位置下拉框文案（保留当前选中值）
         cur_pos = self.overlay_position_combo.currentData()
         self.overlay_position_combo.clear()

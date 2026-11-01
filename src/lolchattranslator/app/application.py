@@ -61,6 +61,8 @@ class Application(QObject):
 
         self._naturalness = 0.7  # temperature
         self._last_png = None
+        self._last_overlay_text = ""
+        self._last_overlay_detail = ""
         self._selecting = False
         self._closing = False
         self._tray = None
@@ -76,8 +78,9 @@ class Application(QObject):
         providers = self._load_providers_meta()
         self.window = MainWindow(providers, self.config, self.secret_store.get_key())
 
-        # 译文阅读悬浮窗（F6 截图翻译结果，只读）
-        self.overlay = ResultOverlayWindow()
+        # 译文阅读悬浮窗（F6 截图翻译结果，只读；F11 隐藏/呼出）
+        overlay_duration = int(self.config.get("overlay.display_duration", 15))
+        self.overlay = ResultOverlayWindow(display_duration=overlay_duration)
 
         # 轻量提示条（替代旧的回复草稿悬浮窗）
         self.toast = Toast()
@@ -168,6 +171,8 @@ class Application(QObject):
                 self.select_region()
             elif action == "reply_translate":
                 self.reply_translate()
+            elif action == "toggle_overlay":
+                self.toggle_overlay()
             elif action == "cancel":
                 self.cancel_current()
             elif action == "test_connection":
@@ -191,9 +196,10 @@ class Application(QObject):
                 "toggle_window": lambda: self._post_action("toggle_window"),
                 "select_region": lambda: self._post_action("select_region"),
                 "reply_translate": lambda: self._post_action("reply_translate"),
+                "toggle_overlay": lambda: self._post_action("toggle_overlay"),
                 "cancel": lambda: self._post_action("cancel"),
             }
-            # 只注册有 handler 的动作，自动清理历史残留（如已废弃的 toggle_overlay）
+            # 只注册有 handler 的动作
             mapping = {action: key for action, key in mapping.items() if action in handlers}
             warnings = self.hotkeys.register_all(mapping, handlers)
             for warn in warnings:
@@ -355,9 +361,22 @@ class Application(QObject):
 
     def _show_overlay_result(self, text: str, detail: str = ""):
         """译文显示到「阅读」悬浮窗，并按配置定位。"""
+        self._last_overlay_text = text or ""
+        self._last_overlay_detail = detail or ""
         position = self.config.get("overlay.position", "bottom-right")
-        self.overlay.set_position(position)
-        self.overlay.show_result(text, detail)
+        self.overlay.show_result(self._last_overlay_text, self._last_overlay_detail, position)
+
+    def toggle_overlay(self):
+        """F11：隐藏/呼出译文悬浮窗。"""
+        if self.overlay.isVisible():
+            self.overlay.hide()
+            self.window.set_status("译文悬浮窗已隐藏 · 按 F11 呼出")
+        elif self._last_overlay_text:
+            position = self.config.get("overlay.position", "bottom-right")
+            self.overlay.show_result(self._last_overlay_text, self._last_overlay_detail, position)
+            self.window.set_status("译文悬浮窗已呼出 · 按 F11 隐藏")
+        else:
+            self.window.set_status("暂无译文可显示 · 先按 F6 截图翻译")
 
     def _on_task_failed(self, message: str):
         self.window.set_busy(False)
@@ -379,13 +398,15 @@ class Application(QObject):
         # 自动注入（高风险功能，默认关闭）
         self.config.set("paste.auto_paste", bool(cfg.get("auto_paste", False)))
         self.config.set("paste.delay_ms", int(cfg.get("paste_delay_ms", 10)))
+        # 译文悬浮窗自动隐藏时长（0 = 常驻）
+        self.config.set(
+            "overlay.display_duration",
+            int(cfg.get("overlay_duration", self.config.get("overlay.display_duration", 15))),
+        )
+        self.overlay.set_display_duration(self.config.get("overlay.display_duration", 15))
         for key, value in cfg.get("hotkeys", {}).items():
             if value:
                 self.config.set(f"hotkeys.{key}", value)
-        # 清理已废弃的快捷键动作（如 toggle_overlay），避免旧配置残留导致冲突
-        hotkeys_data = self.config.data.get("hotkeys")
-        if isinstance(hotkeys_data, dict):
-            hotkeys_data.pop("toggle_overlay", None)
         if cfg.get("api_key"):
             self.secret_store.set_key(cfg["api_key"])
         self.config.save()
