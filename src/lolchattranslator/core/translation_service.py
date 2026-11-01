@@ -33,8 +33,14 @@ class TranslationService:
         provider_cls = get_provider(provider_name)
         return provider_cls(cfg, api_key or "")
 
-    def _cache_key(self, image_data_url: str) -> str:
-        return hashlib.sha256(image_data_url.encode("utf-8")).hexdigest()
+    def _cache_key(self, image_data_url: str, target_lang: str = "", temperature=None) -> str:
+        """缓存键：截图 + 目标语言 + 温度。
+
+        v1.2.2 修复：旧版只哈希图片，改目标语言/改语气后 60 秒内仍会命中旧译文。
+        """
+        temp = "" if temperature is None else f"{round(float(temperature), 2)}"
+        raw = f"{image_data_url}|{target_lang}|{temp}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def _build_prompt(self) -> str:
         glossary = self.config.get("glossary", {}) or {}
@@ -66,7 +72,7 @@ class TranslationService:
         # 有界缓存（相同截图去重），force=True 时跳过
         cfg_behav = self.config.get("behavior", {})
         if cfg_behav.get("cache_enabled", True) and not request.force:
-            key = self._cache_key(data_url)
+            key = self._cache_key(data_url, request.target_lang, request.temperature)
             with self._lock:
                 hit = self._cache.get(key)
                 if hit:
@@ -110,10 +116,11 @@ class TranslationService:
         )
 
         # 缓存
+        key_written = self._cache_key(data_url, request.target_lang, request.temperature)
         if cfg_behav.get("cache_enabled", True):
             with self._lock:
                 self._trim_cache()
-                self._cache[self._cache_key(data_url)] = (
+                self._cache[key_written] = (
                     time.time(),
                     self._result_to_dict(result),
                 )

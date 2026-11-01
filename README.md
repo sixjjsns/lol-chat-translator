@@ -37,6 +37,7 @@
 
 
 - **截图翻译 (Screenshot translation)** — 按 `F6` 截取聊天区域，视觉大模型识别并翻译，译文弹出到悬浮窗，不遮挡游戏画面。
+- **只翻译、不解释 (Translate-only contract)** — 模型被固定在"翻译引擎"角色：输入哪怕是问句（"能不能说中文"）也只翻译不说 Yes/No，输出自动去掉"翻译：""以下是"等包装，疑似在回答问题时会用严格模式自动重试。
 - **反向翻译 + 自动注入 (Reverse translation & injection)** — 在主窗口输入中文，按 `F10` 翻译成对方语言并**直接注入游戏聊天框**（可在设置里开关），按 Enter 发送；未开启或注入失败时自动复制兜底。
 - **多服务支持 (Multiple providers)** — DeepSeek、OpenAI GPT、Google Gemini、xAI Grok、Moonshot Kimi，以及本地 Ollama（无需 API Key、完全离线免费）。
 - **人性化滑块 (Naturalness slider)** — 拖动调节翻译「直译 ↔ 口语化」程度（映射为模型 temperature）。

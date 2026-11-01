@@ -48,7 +48,7 @@ from .pages.settings_page import SettingsPage
 from .pages.translation_page import TranslationPage
 from .theme import build_stylesheet
 
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 
 
 def _asset_path(name: str) -> str:
