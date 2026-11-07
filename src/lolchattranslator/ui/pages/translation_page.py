@@ -1,4 +1,4 @@
-﻿"""翻译页（v1.2.0 重制）：卡片式双区布局 + 快捷短语。
+"""翻译页（v1.2.0 重制）：卡片式双区布局 + 快捷短语。
 
 布局
 ----
@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..i18n import get_language, tr
+from ...providers.prompts import collapse_repeated_lines
 
 # 一键短语：LoL 里最高频的几句，点一下直接翻译并注入
 QUICK_PHRASES = [
@@ -76,7 +77,7 @@ class TranslationPage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._history: list[tuple[str, str]] = []
+        self._history: list[tuple[str, str, str]] = []
         self._last_reply_out = ""
         self._auto_paste = False
         self._build_ui()
@@ -347,13 +348,31 @@ class TranslationPage(QWidget):
             self.duration_chip.hide()
 
     # ================= 译文历史 =================
-    def set_result(self, text: str):
-        """追加一条译文，最多保留 MAX_HISTORY 条，新的一条在底部。"""
+    def set_result(self, text: str, source: str = ""):
+        """追加一条译文（最多 MAX_HISTORY 条）。
+
+        v1.2.3 防刷屏：
+        - 连续两次内容相同（重复按 F6 / 模型复读）不再追加，只更新时间戳；
+        - 每条最多保留 6 行，超出截断；
+        - 有 OCR 原文时在译文上方用灰色小字显示，方便核对识别是否正确。
+        """
         text = (text or "").strip()
         if not text:
             return
+
+        text = collapse_repeated_lines(text, max_lines=6)
+        source = (source or "").strip()
         stamp = datetime.now().strftime("%H:%M:%S")
-        self._history.append((stamp, text))
+
+        if self._history:
+            last_stamp, last_text, last_source = self._history[-1]
+            if last_text == text and last_source == source:
+                # 同一内容重复出现：只刷新时间戳，不新增条目
+                self._history[-1] = (stamp, text, source)
+                self._render_history()
+                return
+
+        self._history.append((stamp, text, source))
         if len(self._history) > self.MAX_HISTORY:
             self._history = self._history[-self.MAX_HISTORY:]
         self._render_history()
@@ -364,7 +383,7 @@ class TranslationPage(QWidget):
             return
 
         blocks = []
-        for index, (stamp, text) in enumerate(self._history):
+        for index, (stamp, text, source) in enumerate(self._history):
             body = html.escape(text).replace("\n", "<br/>")
             if index:
                 blocks.append(
@@ -373,6 +392,16 @@ class TranslationPage(QWidget):
                 )
             blocks.append(
                 f'<div style="color:#64748B; font-size:11px; margin-bottom:3px;">{stamp}</div>'
+            )
+            if source:
+                src = html.escape(source).replace("\n", " / ")
+                if len(src) > 70:
+                    src = src[:70] + "…"
+                blocks.append(
+                    f'<div style="color:#5B6B80; font-size:11px; margin-bottom:3px;">'
+                    f"原文：{src}</div>"
+                )
+            blocks.append(
                 f'<div style="color:#E9EFF7; font-size:13px; line-height:150%;">{body}</div>'
             )
 

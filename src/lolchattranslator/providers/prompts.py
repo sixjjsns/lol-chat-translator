@@ -206,6 +206,11 @@ def sanitize_translation(text: str, target_lang: str = "") -> str:
     if out.startswith("```"):
         out = _FENCE_RE.sub("", out).strip()
 
+    # 模型把定界符也抄回来了（<<< >>>）
+    out = re.sub(r"^\s*<{2,}\s*", "", out)
+    out = re.sub(r"\s*>{2,}\s*$", "", out)
+    out = out.strip()
+
     # 整段被引号包住（只剥一层，且必须成对）
     for left, right in _QUOTE_PAIRS:
         if len(out) > 2 and out.startswith(left) and out.endswith(right):
@@ -228,7 +233,60 @@ def sanitize_translation(text: str, target_lang: str = "") -> str:
     lines = [line.rstrip() for line in out.splitlines()]
     out = "\n".join(lines).strip()
     out = re.sub(r"\n{3,}", "\n\n", out)
+    # 去掉模型复读（刷屏）
+    out = collapse_repeated_lines(out)
     return out
+
+
+def build_transcribe_system_prompt() -> str:
+    """第一步：只做 OCR 抄写（不翻译），把识别和翻译彻底分开。
+
+    为什么拆两步：直接让视觉模型"看图并翻译"，它要同时做两件难事（认字 + 译意），
+    小字认错时会用猜测补全，错误被带进译文。先抄写再翻译，抄写阶段只忠于像素，
+    错误率显著下降，而且能保留原文给用户核对。
+    """
+    return """你是 OCR 引擎，不是翻译、不是助手。任务：把图片里的**游戏聊天文字**原样抄下来。
+
+【规则】
+1. 只抄写，**不要翻译**、不要改写、不要补全、不要解释。
+2. 一行一条消息，保持原始语言、大小写和表情符号。
+3. 玩家名保留（形如 "Name:" 前缀），时间戳、系统提示可以丢掉。
+4. 看不清的字用 `[不确定]` 占位，**绝不猜**。
+5. 如果图里没有文字，输出空内容，不要编造。
+6. 不要输出标题、编号、"以下是"之类的前缀或任何说明。
+7. 同一句话不要重复输出多遍。"""
+
+
+def collapse_repeated_lines(text: str, max_lines: int = 8) -> str:
+    """去掉模型"复读"：连续重复行、整段重复两次、以及只有一两句却刷满屏的情况。"""
+    if not text:
+        return ""
+    lines = [ln.strip() for ln in text.splitlines()]
+    lines = [ln for ln in lines if ln]
+
+    # 1) 连续重复
+    deduped: list[str] = []
+    for line in lines:
+        if deduped and line == deduped[-1]:
+            continue
+        deduped.append(line)
+
+    # 2) 整段重复两遍（A B C A B C）
+    n = len(deduped)
+    if n >= 4 and n % 2 == 0:
+        half = n // 2
+        if deduped[:half] == deduped[half:]:
+            deduped = deduped[:half]
+
+    # 3) 只有一两种内容却刷了很多行
+    if n >= 4 and len(set(deduped)) <= 2:
+        uniq: list[str] = []
+        for line in deduped:
+            if line not in uniq:
+                uniq.append(line)
+        deduped = uniq
+
+    return "\n".join(deduped[:max_lines])
 
 
 # 出现这些开头，基本可以判定"在回答/在解释"，不是翻译

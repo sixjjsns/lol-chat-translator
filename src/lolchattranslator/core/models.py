@@ -26,6 +26,8 @@ class TranslationResult:
     """统一的翻译结果模型。"""
     kind: TaskKind = TaskKind.IMAGE
     translated: str = ""
+    # v1.2.3：两阶段识别时的原文（OCR 结果），用于界面「原文」对照
+    source_text: str = ""
     status: str = "success"
     model: str = ""
     detected_lang: str = "auto"

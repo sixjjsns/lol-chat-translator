@@ -45,6 +45,7 @@ class OpenAICompatProvider(BaseProvider):
         self.temperature = config.get("temperature", 0.7)
         self.image_detail = config.get("image_detail", "high")
         self.strict_translate = bool(config.get("strict_translate", True))
+        self.decode_mode = str(config.get("decode_mode", "two_stage"))
         self.api_key = api_key
         self._session = requests.Session()
 
@@ -142,9 +143,37 @@ class OpenAICompatProvider(BaseProvider):
     # ------------------------------------------------------------------
     # 视觉翻译（截图 → 译文）
     # ------------------------------------------------------------------
+    def vision_transcribe(self, image_data_url: str) -> dict:
+        """第一步：只抄写不翻译（OCR）。"""
+        messages = [
+            {"role": "system", "content": prompts.build_transcribe_system_prompt()},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "把这张截图里的游戏聊天文字原样抄下来，一行一条。"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_data_url, "detail": self.image_detail},
+                    },
+                ],
+            },
+        ]
+        data = self.chat(messages, temperature=0.0)
+        text = prompts.sanitize_translation(self._extract_content(data), "")
+        return {"raw": text, "model": data.get("model", self.model)}
+
     def vision_translate(self, image_data_url: str, prompt: str,
                          source_lang: str = "auto", target_lang: str = "zh") -> dict:
-        """发送带图片的翻译请求，返回标准化结构。"""
+        """发送带图片的翻译请求，返回标准化结构。
+
+        v1.2.3：默认走「先抄写再翻译」两阶段（decode_mode=two_stage），
+        识别错误率高时比一次性"看图翻译"稳得多；失败则回退一次性。
+        """
+        if self.decode_mode == "two_stage":
+            two_stage = self._vision_two_stage(image_data_url, target_lang)
+            if two_stage:
+                return two_stage
+
         raw, model = self._vision_once(image_data_url, prompt, target_lang, strict=False)
         text = prompts.sanitize_translation(raw, target_lang)
 
@@ -167,6 +196,36 @@ class OpenAICompatProvider(BaseProvider):
             "status": "success",
             "model": model,
             "usage": None,
+            "transcript": "",
+        }
+
+    def _vision_two_stage(self, image_data_url: str, target_lang: str) -> dict | None:
+        """抄写 → 文本翻译。抄写失败或没认出字时返回 None（调用方回退一次性）。"""
+        try:
+            transcribe = self.vision_transcribe(image_data_url)
+        except ProviderError as e:
+            logger.warning("OCR 抄写失败，回退一次性识别+翻译：%s", e.message)
+            return None
+
+        transcript = (transcribe.get("raw") or "").strip()
+        # 只认出 [不确定] 或空 → 认为没识别到，回退
+        if not transcript or transcript.replace("[不确定]", "").strip() == "":
+            logger.warning("OCR 未识别到聊天文字，回退一次性识别+翻译")
+            return None
+
+        try:
+            translated = self.text_translate(transcript, target_lang)
+        except ProviderError:
+            return None
+
+        text = (translated.get("raw") or "").strip()
+        logger.info("两阶段识别完成：原文 %d 字 → 译文 %d 字", len(transcript), len(text))
+        return {
+            "raw": text,
+            "status": "success",
+            "model": translated.get("model") or transcribe.get("model", ""),
+            "usage": None,
+            "transcript": transcript,
         }
 
     def _vision_once(self, image_data_url: str, extra_prompt: str,

@@ -66,9 +66,15 @@ class TestOpenAICompatProvider(unittest.TestCase):
         })
         result = self.provider.vision_translate("data:image/jpeg;base64,AAAA", "翻译")
         self.assertEqual(result["status"], "success")
-        call_args = mock_post.call_args
-        payload = call_args.kwargs.get("json") or call_args[1]["json"]
-        user_content = payload["messages"][1]["content"]
+        # v1.2.3 起默认两阶段（先抄写再翻译），vision_translate 会发两次请求；
+        # 这里取出带图片的那一条，验证请求结构。
+        payloads = [
+            (c.kwargs.get("json") or c[1]["json"]) for c in mock_post.call_args_list
+        ]
+        vision_payload = next(
+            p for p in payloads if isinstance(p["messages"][1]["content"], list)
+        )
+        user_content = vision_payload["messages"][1]["content"]
         self.assertTrue(any(block.get("type") == "image_url" for block in user_content))
         self.assertTrue(any(block.get("type") == "text" for block in user_content))
 

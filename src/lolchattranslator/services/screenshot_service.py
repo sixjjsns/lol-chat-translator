@@ -43,8 +43,8 @@ class ScreenshotService:
 
             img = Image.frombytes("RGB", shot.size, shot.rgb)
 
-            # 小字放大：聊天框局部截图（宽或高较小）时放大，提升 OCR 识别率
-            img = self._maybe_upscale(img)
+            # 说明：v1.2.3 起不在截图阶段放大，统一交给 ImageProcessor 做
+            # （放大 + 锐化 + 无损编码，集中管理，避免二次放大导致糊）
 
             import io
 

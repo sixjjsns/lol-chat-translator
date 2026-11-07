@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lol-chat-translator"
-version = "1.2.2"
+version = "1.2.3"
 description = "A desktop screenshot translation tool for League of Legends (international server) in-game chat"
 readme = "README.md"
 requires-python = ">=3.11"

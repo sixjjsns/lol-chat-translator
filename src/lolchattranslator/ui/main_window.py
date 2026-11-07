@@ -48,7 +48,7 @@ from .pages.settings_page import SettingsPage
 from .pages.translation_page import TranslationPage
 from .theme import build_stylesheet
 
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.2.3"
 
 
 def _asset_path(name: str) -> str:
@@ -385,8 +385,8 @@ class MainWindow(QMainWindow):
     def set_status(self, text: str):
         self.status.showMessage(text)
 
-    def set_result(self, text: str):
-        self.translation_page.set_result(text)
+    def set_result(self, text: str, source: str = ""):
+        self.translation_page.set_result(text, source)
 
     def set_reply_result(self, text: str):
         self.translation_page.set_reply_result(text)

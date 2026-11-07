@@ -106,6 +106,7 @@ class TranslationService:
         result = TranslationResult(
             kind=TaskKind.IMAGE,
             translated=raw["raw"].strip(),
+            source_text=(raw.get("transcript") or "").strip(),
             status=raw["status"],
             model=raw.get("model", ""),
             detected_lang=request.source_lang,
@@ -198,6 +199,7 @@ class TranslationService:
         return {
             "kind": result.kind.value,
             "translated": result.translated,
+            "source_text": result.source_text,
             "status": result.status,
             "model": result.model,
             "detected_lang": result.detected_lang,

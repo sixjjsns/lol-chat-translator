@@ -28,9 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 MARGIN = 16
-MIN_WIDTH = 240
-MAX_WIDTH_RATIO = 0.55
-MAX_HEIGHT_RATIO = 0.45
+MIN_WIDTH = 220
+MAX_WIDTH_RATIO = 0.42
+MAX_HEIGHT_RATIO = 0.38
 
 
 class ResultOverlayWindow(QWidget):
@@ -44,6 +44,7 @@ class ResultOverlayWindow(QWidget):
         self._position = "bottom-right"
         self._penetrate = False
         self._drag_offset = None
+        self._user_moved = False
         self._last_text = ""
         self._last_detail = ""
 
@@ -62,7 +63,8 @@ class ResultOverlayWindow(QWidget):
         self._auto_hide.timeout.connect(self.hide)
 
         self._build_ui()
-        self.resize(380, 170)
+        # v1.2.3：默认更小，少挡画面
+        self.resize(340, 136)
 
     # ------------------------------------------------------------------
     def _build_ui(self):
@@ -84,7 +86,7 @@ class ResultOverlayWindow(QWidget):
             }
             QLabel#overlayText {
                 color: #e6edf3;
-                font-size: 14px;
+                font-size: 13px;
             }
             QPushButton#overlayClose {
                 background: transparent;
@@ -99,7 +101,7 @@ class ResultOverlayWindow(QWidget):
         """)
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 8, 10, 10)
+        root.setContentsMargins(12, 7, 9, 9)
         root.setSpacing(4)
 
         top = QHBoxLayout()
@@ -151,7 +153,8 @@ class ResultOverlayWindow(QWidget):
         # 先调尺寸（钳制最大宽高），再定位（钳制到屏幕内）——顺序很关键
         self.adjustSize()
         self._clamp_size()
-        self._apply_position()
+        if not self._user_moved:
+            self._apply_position()
 
         self.show()
         self.raise_()
@@ -159,6 +162,7 @@ class ResultOverlayWindow(QWidget):
 
     def set_position(self, position: str):
         self._position = position
+        self._user_moved = False
 
     def _clamp_size(self):
         screen = QApplication.primaryScreen()
@@ -242,15 +246,29 @@ class ResultOverlayWindow(QWidget):
     # 拖动 / 双击 / 右键 / 键盘
     # ------------------------------------------------------------------
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_offset = (
-                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            )
-            event.accept()
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        # 优先交给系统处理（startSystemMove）：无边框 Tool 窗口压在游戏上层时，
+        # 自己 move() 有时收不到稳定的 move 事件，表现为"拖不动"。
+        handle = self.windowHandle()
+        if handle is not None:
+            try:
+                if handle.startSystemMove():
+                    self._drag_offset = None
+                    self._user_moved = True
+                    event.accept()
+                    return
+            except Exception:
+                pass
+        self._drag_offset = (
+            event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+        )
+        event.accept()
 
     def mouseMoveEvent(self, event):
         if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
             self.move(event.globalPosition().toPoint() - self._drag_offset)
+            self._user_moved = True
             event.accept()
 
     def mouseReleaseEvent(self, event):
